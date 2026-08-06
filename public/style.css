@@ -18,7 +18,7 @@
 /* V10: 모든 캐릭터/모션 PNG는 투명 배경 누끼 이미지입니다. */
 .game{
   background-color:#a8eb62;
-  background-image:url("/assets/field-background.png?v=10");
+  background-image:url("/assets/field-background.png?v=13");
   background-position:center;
   background-size:cover;
   background-repeat:no-repeat;
@@ -57,3 +57,61 @@
     height:min(43vh,360px);
   }
 }
+
+/* V12: 클릭 시 화면이 어두워지지 않도록 브라우저 기본 터치/버튼 효과 제거 */
+html,body,.game,.screen-clicker{
+  -webkit-tap-highlight-color:transparent;
+}
+.screen-clicker,
+.screen-clicker:hover,
+.screen-clicker:focus,
+.screen-clicker:focus-visible,
+.screen-clicker:active,
+.screen-clicker.is-pressed{
+  background:transparent !important;
+  opacity:1 !important;
+  filter:none !important;
+  box-shadow:none !important;
+  outline:none;
+  color:inherit;
+}
+.character-frame,
+.character-frame.is-visible,
+.screen-clicker:active .character-frame,
+.screen-clicker.is-pressed .character-frame{
+  opacity:0;
+  mix-blend-mode:normal !important;
+  visibility:visible;
+}
+.character-frame.is-visible{
+  opacity:1 !important;
+}
+
+/* V13: 게임 시작 전 전체 이미지 로딩 화면 */
+.loading-screen{
+  position:fixed;
+  inset:0;
+  z-index:9999;
+  display:grid;
+  place-items:center;
+  padding:20px;
+  background:#a8eb62 url("/assets/field-background.png?v=13") center/cover no-repeat;
+  transition:opacity .25s ease,visibility .25s ease;
+}
+.loading-screen.is-hidden{opacity:0;visibility:hidden;pointer-events:none}
+.loading-card{
+  width:min(88vw,360px);
+  padding:24px;
+  border:3px solid rgba(255,255,255,.92);
+  border-radius:24px;
+  background:rgba(255,253,240,.94);
+  box-shadow:0 18px 50px rgba(65,101,20,.25);
+  text-align:center;
+}
+.loading-crown{font-size:42px;line-height:1;color:#d98a12;margin-bottom:8px}
+.loading-card strong{display:block;font-size:22px}
+.loading-card p{margin:8px 0 14px;color:#76685f;font-size:13px}
+.loading-track{height:12px;border-radius:999px;background:#e9dfbd;overflow:hidden}
+.loading-track span{display:block;width:0;height:100%;border-radius:inherit;background:#f69051;transition:width .18s ease}
+.loading-card small{display:block;margin-top:8px;color:#8d785d;font-weight:800}
+.game.is-loading{pointer-events:none;visibility:hidden}
