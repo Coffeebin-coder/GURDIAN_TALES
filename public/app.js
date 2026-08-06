@@ -1,10 +1,11 @@
 'use strict';
-const ASSET_VERSION = 10;
+const ASSET_VERSION = 13;
 const $ = (s) => document.querySelector(s);
 const scoreEl=$('#score'),idleImage=$('#idleImage'),motionImage=$('#motionImage'),buttonEl=$('#characterButton'),authBtn=$('#authBtn');
 const authDialog=$('#authDialog'),motionDialog=$('#motionDialog'),authError=$('#authError'),motionError=$('#motionError');
 const podiumRows=$('#podiumRows'),motionNameEl=$('#motionName'),toastEl=$('#unlockToast'),floatLayer=$('#floatLayer');
 const motionSelect=$('#motionSelect'),motionHint=$('#motionSettingHint');
+const loadingScreen=$('#loadingScreen'),loadingBar=$('#loadingBar'),loadingText=$('#loadingText'),loadingCount=$('#loadingCount'),gameEl=$('.game');
 const MOTIONS=[
 {threshold:0,name:'기본 콕',image:'/assets/pressed.png'},
 {threshold:1000,name:'반짝 콕',image:'/assets/motions/1000.png'},
@@ -19,6 +20,7 @@ let token=localStorage.getItem('eungae_token')||'',user=null,localScore=0,pendin
 let settleTimer=null,lastTapAt=0,rapidFrame=0;
 let motionMode=localStorage.getItem('eungae_motion_mode')||'random';
 let selectedMotion=Number(localStorage.getItem('eungae_selected_motion')||0),previousMotion=0;
+let gameReady=false;
 const processedImageMap = new Map();
 const processingImageMap = new Map();
 const objectUrls = new Set();
@@ -41,6 +43,11 @@ function chooseMotion(){const list=unlocked();if(motionMode==='single')return MO
 function setFrame(showMotion){idleImage.classList.toggle('is-visible',!showMotion);motionImage.classList.toggle('is-visible',showMotion);buttonEl.classList.toggle('is-pressed',showMotion)}
 function getProcessedSrc(path){return processedImageMap.get(path)||assetUrl(path)}
 async function ensureProcessed(path){
+  if(path.includes('/assets/motions/')){
+    const original=assetUrl(path);
+    processedImageMap.set(path,original);
+    return original;
+  }
   if(processedImageMap.has(path))return processedImageMap.get(path);
   if(processingImageMap.has(path))return processingImageMap.get(path);
   const task=autoCutout(path).then(src=>{processedImageMap.set(path,src);processingImageMap.delete(path);return src;}).catch(err=>{console.error('누끼 처리 실패:',path,err);processingImageMap.delete(path);const fallback=assetUrl(path);processedImageMap.set(path,fallback);return fallback;});
@@ -50,24 +57,31 @@ async function ensureProcessed(path){
 function showPressed(){
   const m=chooseMotion();
   const currentPath=m.image;
-  const readySrc=getProcessedSrc(currentPath);
+  const nextSrc=currentPath.includes('/assets/motions/') ? assetUrl(currentPath) : getProcessedSrc(currentPath);
   motionImage.alt=`응애공주 ${m.name}`;
-  motionImage.setAttribute('src',readySrc);
-  setFrame(true);
-  if(!processedImageMap.has(currentPath)){
-    ensureProcessed(currentPath).then(src=>{
-      if(buttonEl.classList.contains('is-pressed')&&motionImage.alt===`응애공주 ${m.name}`)motionImage.src=src;
-    });
+  const reveal=()=>{motionImage.onload=null;motionImage.onerror=null;setFrame(true);};
+  if(motionImage.getAttribute('src')===nextSrc && motionImage.complete && motionImage.naturalWidth>0){
+    reveal();
+    return;
   }
+  motionImage.onload=reveal;
+  motionImage.onerror=()=>{
+    console.error('모션 이미지 로드 실패:',nextSrc);
+    motionImage.onload=null;
+    motionImage.onerror=null;
+    motionImage.src=assetUrl('/assets/pressed.png');
+    setFrame(true);
+  };
+  motionImage.src=nextSrc;
 }
 function showIdle(){const nextSrc=getProcessedSrc('/assets/idle.png');if(idleImage.getAttribute('src')!==nextSrc)idleImage.setAttribute('src',nextSrc);setFrame(false)}
 function stopClickAnimation(){if(settleTimer){clearTimeout(settleTimer);settleTimer=null;}rapidFrame=0;showIdle()}
-function playClickFrame(){const now=performance.now();const isRapid=now-lastTapAt<210;lastTapAt=now;if(!isRapid)rapidFrame=0;const showMotion=rapidFrame%2===0;rapidFrame++;if(showMotion)showPressed();else showIdle();if(settleTimer)clearTimeout(settleTimer);settleTimer=setTimeout(()=>{rapidFrame=0;showIdle();settleTimer=null;},150)}
+function playClickFrame(){const now=performance.now();const isRapid=now-lastTapAt<210;lastTapAt=now;if(!isRapid)rapidFrame=0;const showMotion=rapidFrame%2===0;rapidFrame++;if(showMotion)showPressed();else showIdle();if(settleTimer)clearTimeout(settleTimer);settleTimer=setTimeout(()=>{rapidFrame=0;showIdle();settleTimer=null;},190)}
 function showFloat(e){const r=buttonEl.getBoundingClientRect(),el=document.createElement('span');el.className='float-score';el.textContent='+1';el.style.left=`${e?.clientX??r.width/2}px`;el.style.top=`${e?.clientY??r.height/2}px`;floatLayer.appendChild(el);setTimeout(()=>el.remove(),800)}
 function checkUnlock(){const now=motionIndex(localScore);if(now>previousMotion){selectedMotion=now;storePrefs();toastEl.innerHTML=`✨ ${MOTIONS[now].name}<br><small>새 모션 해금!</small>`;toastEl.classList.add('show');setTimeout(()=>toastEl.classList.remove('show'),2200);ensureProcessed(MOTIONS[now].image)}previousMotion=now}
 function optimistic(){if(!user)return;const rows=[...document.querySelectorAll('.rank-row')].map(r=>({username:r.dataset.username,clicks:Number(r.dataset.clicks)})).filter(x=>x.username);const f=rows.find(x=>x.username===user.username);if(f)f.clicks=localScore;else rows.push({username:user.username,clicks:localScore});rows.sort((a,b)=>b.clicks-a.clicks);renderLeaderboard(rows.slice(0,3))}
 async function flush(){clearTimeout(flushTimer);flushTimer=null;if(!token||pending<1)return;const amount=pending;pending=0;try{const d=await api('/api/clicks',{method:'POST',body:JSON.stringify({amount})});user=d.user;localScore=Math.max(localScore,user.clicks);applyUser(user);renderScore();renderLeaderboard(d.leaderboard)}catch(e){pending+=amount;console.error(e)}}
-function onClick(e){if(!user){authDialog.showModal();return}localScore++;pending++;playClickFrame();renderScore();checkUnlock();showFloat(e);optimistic();clearTimeout(flushTimer);flushTimer=setTimeout(flush,170)}
+function onClick(e){if(!gameReady)return;if(!user){authDialog.showModal();return}localScore++;pending++;playClickFrame();renderScore();checkUnlock();showFloat(e);optimistic();clearTimeout(flushTimer);flushTimer=setTimeout(flush,170)}
 async function loadBoard(){try{const d=await api('/api/leaderboard');renderLeaderboard(d.leaderboard)}catch(e){console.error(e)}}
 function events(){const es=new EventSource('/api/events');es.addEventListener('leaderboard',e=>{try{renderLeaderboard(JSON.parse(e.data))}catch{}});es.onerror=()=>{es.close();setTimeout(events,4000)}}
 function populateSettings(){normalize();motionSelect.innerHTML='';unlocked().forEach(m=>{const o=document.createElement('option');o.value=String(m.index);o.textContent=`${m.name} · ${format(m.threshold)} 클릭`;motionSelect.appendChild(o)});motionSelect.value=String(selectedMotion);const radio=document.querySelector(`input[name="motionMode"][value="${motionMode}"]`);if(radio)radio.checked=true;updateSettingsState()}
@@ -147,22 +161,56 @@ async function autoCutout(path){
   objectUrls.add(url);
   return url;
 }
-async function preprocessInitialImages(){
-  await ensureProcessed('/assets/idle.png');
+async function preloadOne(path){
+  const url=assetUrl(path);
+  return new Promise((resolve)=>{
+    const img=new Image();
+    let done=false;
+    const finish=(ok)=>{if(done)return;done=true;clearTimeout(timer);resolve({path,ok});};
+    const timer=setTimeout(()=>finish(false),7000);
+    img.onload=()=>{
+      if(typeof img.decode==='function')img.decode().catch(()=>{}).finally(()=>finish(true));
+      else finish(true);
+    };
+    img.onerror=()=>finish(false);
+    img.decoding='async';
+    img.src=url;
+  });
+}
+function updateLoading(done,total,label){
+  const percent=Math.round((done/total)*100);
+  loadingBar.style.width=`${percent}%`;
+  loadingCount.textContent=`${done} / ${total}`;
+  loadingText.textContent=label||`이미지를 불러오고 있어요… ${percent}%`;
+}
+async function bootGame(){
+  const paths=[
+    '/assets/field-background.png',
+    '/assets/idle.png',
+    '/assets/pressed.png',
+    ...MOTIONS.filter(m=>m.threshold>0).map(m=>m.image)
+  ];
+  let done=0,failed=0;
+  updateLoading(0,paths.length,'이미지를 불러오고 있어요…');
+  await Promise.all(paths.map(async(path)=>{
+    const result=await preloadOne(path);
+    if(!result.ok)failed++;
+    done++;
+    updateLoading(done,paths.length,`이미지를 준비하고 있어요… ${Math.round(done/paths.length*100)}%`);
+  }));
+
+  updateLoading(paths.length,paths.length,'캐릭터를 준비하고 있어요…');
+  await Promise.all([ensureProcessed('/assets/idle.png'),ensureProcessed('/assets/pressed.png')]);
   idleImage.src=getProcessedSrc('/assets/idle.png');
-  await ensureProcessed('/assets/pressed.png');
   motionImage.src=getProcessedSrc('/assets/pressed.png');
   showIdle();
-  preprocessUnlockedImages();
-}
-async function preprocessUnlockedImages(){
-  const paths=unlocked().map(m=>m.image).filter(path=>!processedImageMap.has(path)&&!processingImageMap.has(path));
-  for(const path of paths){
-    await ensureProcessed(path);
-    await new Promise(resolve=>setTimeout(resolve,30));
-  }
-}
 
+  gameReady=true;
+  gameEl.classList.remove('is-loading');
+  loadingText.textContent=failed?`일부 이미지 ${failed}개는 필요할 때 다시 불러옵니다.`:'준비 완료!';
+  loadingBar.style.width='100%';
+  setTimeout(()=>loadingScreen.classList.add('is-hidden'),failed?700:250);
+}
 
 authBtn.addEventListener('click',async()=>{if(user){await flush();token='';user=null;localScore=0;localStorage.removeItem('eungae_token');updateAuth();renderScore()}else authDialog.showModal()});
 $('#motionSettingsBtn').addEventListener('click',()=>{populateSettings();motionDialog.showModal()});
@@ -173,4 +221,6 @@ buttonEl.addEventListener('pointerdown',e=>{e.preventDefault();onClick(e)});
 window.addEventListener('blur',stopClickAnimation);
 window.addEventListener('keydown',e=>{if((e.code==='Space'||e.code==='Enter')&&!e.repeat&&!authDialog.open&&!motionDialog.open){e.preventDefault();onClick();}});
 
-renderLeaderboard();renderScore();restore().finally(()=>{preprocessInitialImages();});loadBoard();events();updateAuth();
+renderLeaderboard();renderScore();updateAuth();
+Promise.allSettled([restore(),loadBoard()]).finally(()=>bootGame());
+events();
