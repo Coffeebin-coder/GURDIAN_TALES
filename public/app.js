@@ -1,10 +1,10 @@
 'use strict';
-const ASSET_VERSION = 49;
+const ASSET_VERSION = 50;
 const $ = (s) => document.querySelector(s);
 
 const scoreEl = $('#score');
 const idleImage = $('#idleImage');
-let motionImages = [];
+const motionImage = $('#motionImage');
 const buttonEl = $('#characterButton');
 const authBtn = $('#authBtn');
 const authDialog = $('#authDialog');
@@ -36,7 +36,6 @@ const MOTIONS = [
   { threshold: 1000000000, name: '축제 피날레 콕', image: '/assets/motions/1000000000.png' }
 ];
 
-motionImages = MOTIONS.map((_, index) => document.querySelector(`#motion${index}`));
 
 let token = localStorage.getItem('eungae_token') || '';
 let user = null;
@@ -52,7 +51,8 @@ let loadingSkipTimer = null;
 let bootSafetyTimer = null;
 let audioCtx = null;
 
-let motionMode = localStorage.getItem('eungae_motion_mode') || 'random';
+let forceRandomMigration = localStorage.getItem('eungae_motion_pref_version') !== '50';
+let motionMode = forceRandomMigration ? 'random' : (localStorage.getItem('eungae_motion_mode') || 'random');
 let selectedMotion = Number(localStorage.getItem('eungae_selected_motion') || 0);
 let soundEnabled = (localStorage.getItem('eungae_sound_enabled') || '1') !== '0';
 
@@ -76,6 +76,7 @@ function storePrefs() {
   localStorage.setItem('eungae_motion_mode', motionMode);
   localStorage.setItem('eungae_selected_motion', String(selectedMotion));
   localStorage.setItem('eungae_sound_enabled', soundEnabled ? '1' : '0');
+  localStorage.setItem('eungae_motion_pref_version', '50');
 }
 function renderScore() {
   normalize();
@@ -113,19 +114,35 @@ function updateAuth() {
 }
 function applyUser(u) {
   if (!u) return;
-  motionMode = u.motionMode || motionMode;
+  motionMode = forceRandomMigration ? 'random' : (u.motionMode || motionMode);
   selectedMotion = Number.isInteger(u.selectedMotion) ? u.selectedMotion : selectedMotion;
   normalize();
   storePrefs();
 }
 async function restore() {
-  if (!token) { renderScore(); return; }
+  if (!token) {
+    normalize();
+    storePrefs();
+    forceRandomMigration = false;
+    renderScore();
+    return;
+  }
   try {
     const d = await api('/api/me');
     user = d.user;
     localScore = user.clicks;
     applyUser(user);
     previousMotion = motionIndex(localScore);
+    if (forceRandomMigration) {
+      motionMode = 'random';
+      selectedMotion = motionIndex(localScore);
+      storePrefs();
+      await api('/api/preferences', {
+        method: 'PUT',
+        body: JSON.stringify({ motionMode, selectedMotion })
+      }).catch(() => {});
+      forceRandomMigration = false;
+    }
   } catch {
     token = '';
     localStorage.removeItem('eungae_token');
@@ -154,34 +171,45 @@ async function auth(mode) {
   }
 }
 function chooseMotion() {
-  const list = unlocked();
-  if (motionMode === 'single') return MOTIONS[selectedMotion] || list.at(-1) || MOTIONS[0];
-  const specials = list.filter((m) => m.index > 0);
-  const pool = specials.length ? specials : list;
-  if (pool.length <= 1) return pool[0] || MOTIONS[0];
-  let i = Math.floor(Math.random() * pool.length);
-  if (i === lastRandom) i = (i + 1) % pool.length;
-  lastRandom = i;
-  return pool[i];
+  const pool = unlocked();
+  if (motionMode === 'single') {
+    return MOTIONS[selectedMotion] || pool.at(-1) || MOTIONS[0];
+  }
+
+  if (pool.length <= 1) {
+    lastRandom = pool[0]?.index ?? 0;
+    return pool[0] || MOTIONS[0];
+  }
+
+  const candidates = pool.filter((m) => m.index !== lastRandom);
+  const selected = candidates[Math.floor(Math.random() * candidates.length)] || pool[0];
+  lastRandom = selected.index;
+  return selected;
 }
-function hideAllFrames() {
-  idleImage.classList.remove('is-visible');
-  motionImages.forEach((img) => img?.classList.remove('is-visible'));
+function setVisibleFrame(frame) {
+  idleImage.classList.toggle('is-visible', frame === 'idle');
+  motionImage.classList.toggle('is-visible', frame === 'motion');
+  buttonEl.classList.toggle('is-pressed', frame === 'motion');
 }
 function showPressed() {
   const m = chooseMotion();
-  hideAllFrames();
-  const target = motionImages[m.index] || motionImages[0];
-  if (target) target.classList.add('is-visible');
-  buttonEl.classList.add('is-pressed');
+  const nextSrc = assetUrl(m.image);
+  if (motionImage.getAttribute('src') !== nextSrc) {
+    motionImage.setAttribute('src', nextSrc);
+  }
+  motionImage.alt = m.threshold === 0
+    ? '응애공주 기본 클릭 모션'
+    : `${m.threshold}개 클릭 해금 모션`;
+  setVisibleFrame('motion');
 }
 function showIdle() {
-  hideAllFrames();
-  idleImage.classList.add('is-visible');
-  buttonEl.classList.remove('is-pressed');
+  setVisibleFrame('idle');
 }
 function stopClickAnimation() {
-  if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
+  if (settleTimer) {
+    clearTimeout(settleTimer);
+    settleTimer = null;
+  }
   showIdle();
 }
 function playClickFrame() {
@@ -190,7 +218,7 @@ function playClickFrame() {
   settleTimer = setTimeout(() => {
     showIdle();
     settleTimer = null;
-  }, 520);
+  }, 650);
 }
 function showFloat(e) {
   const r = buttonEl.getBoundingClientRect();
@@ -206,7 +234,6 @@ function checkUnlock() {
   const now = motionIndex(localScore);
   if (now > previousMotion) {
     selectedMotion = now;
-    motionMode = 'single';
     storePrefs();
     if (user) {
       api('/api/preferences', {
@@ -312,7 +339,9 @@ function populateSettings() {
   unlocked().forEach((m) => {
     const o = document.createElement('option');
     o.value = String(m.index);
-    o.textContent = `${m.name} · ${format(m.threshold)} 클릭`;
+    o.textContent = m.threshold === 0
+      ? '기본 이미지 · 0개'
+      : `${m.threshold}개 · ${m.name}`;
     motionSelect.appendChild(o);
   });
   motionSelect.value = String(selectedMotion);
@@ -325,7 +354,7 @@ function updateSettingsState() {
   const mode = document.querySelector('input[name="motionMode"]:checked')?.value || 'random';
   motionSelect.disabled = false;
   motionHint.textContent = mode === 'random'
-    ? `해금된 ${unlocked().length}개 모션 중 하나가 매번 랜덤으로 나옵니다.`
+    ? `기본 이미지를 포함해 해금된 ${unlocked().length}개 이미지가 클릭할 때마다 랜덤으로 나옵니다.`
     : '선택한 모션 하나만 계속 나옵니다.';
 }
 async function saveSettings() {
@@ -388,6 +417,7 @@ function releaseGame(failed, total) {
   clearTimeout(loadingSkipTimer);
   clearTimeout(bootSafetyTimer);
   loadingSkipBtn.classList.remove('is-visible');
+  motionImage.setAttribute('src', assetUrl(MOTIONS[0].image));
   showIdle();
   gameReady = true;
   gameEl.classList.remove('is-loading');
