@@ -1,10 +1,9 @@
 'use strict';
-const ASSET_VERSION = 47;
+const ASSET_VERSION = 48;
 const $ = (s) => document.querySelector(s);
 
 const scoreEl = $('#score');
-const idleImage = $('#idleImage');
-const motionImage = $('#motionImage');
+const characterImage = $('#characterImage');
 const buttonEl = $('#characterButton');
 const authBtn = $('#authBtn');
 const authDialog = $('#authDialog');
@@ -162,24 +161,24 @@ function chooseMotion() {
   lastRandom = i;
   return pool[i];
 }
-function setFrame(showMotion) {
-  idleImage.classList.toggle('is-visible', !showMotion);
-  motionImage.classList.toggle('is-visible', showMotion);
-  buttonEl.classList.toggle('is-pressed', showMotion);
+const imageCache = new Map();
+function cachedAsset(path) {
+  return imageCache.get(path) || assetUrl(path);
 }
-function setImg(imgEl, path, altText) {
-  const src = assetUrl(path);
-  if (imgEl.getAttribute('src') !== src) imgEl.setAttribute('src', src);
-  if (altText) imgEl.alt = altText;
+function setCharacter(path, altText) {
+  const src = cachedAsset(path);
+  if (characterImage.getAttribute('src') !== src) characterImage.setAttribute('src', src);
+  characterImage.alt = altText;
+  characterImage.classList.add('is-visible');
 }
 function showPressed() {
   const m = chooseMotion();
-  setImg(motionImage, m.image, `응애공주 ${m.name}`);
-  setFrame(true);
+  setCharacter(m.image, `응애공주 ${m.name}`);
+  buttonEl.classList.add('is-pressed');
 }
 function showIdle() {
-  setImg(idleImage, '/assets/idle-user.png', '응애공주 기본 상태');
-  setFrame(false);
+  setCharacter('/assets/idle-user.png', '응애공주 기본 상태');
+  buttonEl.classList.remove('is-pressed');
 }
 function stopClickAnimation() {
   if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
@@ -389,8 +388,6 @@ function releaseGame(failed, total) {
   clearTimeout(loadingSkipTimer);
   clearTimeout(bootSafetyTimer);
   loadingSkipBtn.classList.remove('is-visible');
-  setImg(idleImage, '/assets/idle-user.png', '응애공주 기본 상태');
-  setImg(motionImage, '/assets/pressed-user.png', '응애공주 클릭 상태');
   showIdle();
   gameReady = true;
   gameEl.classList.remove('is-loading');
@@ -413,7 +410,8 @@ async function bootGame() {
 
   await Promise.all(paths.map(async (path) => {
     try {
-      await loadImage(assetUrl(path));
+      const img = await loadImage(assetUrl(path));
+      imageCache.set(path, img.src);
     } catch (e) {
       failed++;
       console.error(e);
