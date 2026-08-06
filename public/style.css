@@ -18,7 +18,7 @@
 /* V10: 모든 캐릭터/모션 PNG는 투명 배경 누끼 이미지입니다. */
 .game{
   background-color:#a8eb62;
-  background-image:url("/assets/field-background.png?v=14");
+  background-image:url("/assets/field-background.png?v=16");
   background-position:center;
   background-size:cover;
   background-repeat:no-repeat;
@@ -95,7 +95,7 @@ html,body,.game,.screen-clicker{
   display:grid;
   place-items:center;
   padding:20px;
-  background:#a8eb62 url("/assets/field-background.png?v=14") center/cover no-repeat;
+  background:#a8eb62 url("/assets/field-background.png?v=16") center/cover no-repeat;
   transition:opacity .25s ease,visibility .25s ease;
 }
 .loading-screen.is-hidden{opacity:0;visibility:hidden;pointer-events:none}
