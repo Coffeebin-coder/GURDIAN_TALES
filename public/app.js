@@ -15,7 +15,7 @@ const MOTIONS=[
 {threshold:1000000000,name:'꼬마공주 소환',image:'/assets/motions/1000000000.png'},
 {threshold:10000000000,name:'응애공주 대축제',image:'/assets/motions/10000000000.png'}];
 let token=localStorage.getItem('eungae_token')||'',user=null,localScore=0,pending=0,flushTimer,lastRandom=-1;
-let pulseQueue=0,pulseRunning=false;
+let pulseQueue=0,pulseRunning=false,animationGeneration=0;
 let motionMode=localStorage.getItem('eungae_motion_mode')||'random';
 let selectedMotion=Number(localStorage.getItem('eungae_selected_motion')||0),previousMotion=0;
 const format=n=>new Intl.NumberFormat('ko-KR').format(Number(n)||0);
@@ -33,26 +33,45 @@ async function restore(){if(!token){renderScore();return}try{const d=await api('
 async function auth(mode){authError.textContent='';try{const d=await api(`/api/auth/${mode}`,{method:'POST',body:JSON.stringify({username:$('#username').value.trim(),password:$('#password').value})});token=d.token;user=d.user;localScore=user.clicks;applyUser(user);previousMotion=motionIndex(localScore);localStorage.setItem('eungae_token',token);updateAuth();renderScore();authDialog.close()}catch(e){authError.textContent=e.message}}
 function chooseMotion(){const list=unlocked();if(motionMode==='single')return MOTIONS[selectedMotion]||list.at(-1)||MOTIONS[0];if(list.length===1)return list[0];let i=Math.floor(Math.random()*list.length);if(i===lastRandom)i=(i+1)%list.length;lastRandom=i;return list[i]}
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-function setIdleFrame(){imageEl.src='/assets/idle-character.png';imageEl.alt='응애공주 기본 상태';buttonEl.classList.remove('is-pressed')}
-function setPressedFrame(){const m=chooseMotion();imageEl.src=m.image;imageEl.alt=`응애공주 ${m.name}`;buttonEl.classList.add('is-pressed')}
+const nextPaint=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+function setIdleFrame(){
+  imageEl.src='/assets/idle-character.png?v=4';
+  imageEl.alt='응애공주 기본 상태';
+  buttonEl.classList.remove('is-pressed');
+}
+function setPressedFrame(){
+  const m=chooseMotion();
+  imageEl.src=`${m.image}?v=4`;
+  imageEl.alt=`응애공주 ${m.name}`;
+  buttonEl.classList.add('is-pressed');
+}
 async function runPulseQueue(){
   if(pulseRunning)return;
   pulseRunning=true;
-  while(pulseQueue>0){
+  const generation=++animationGeneration;
+
+  while(pulseQueue>0 && generation===animationGeneration){
     pulseQueue--;
-    // 아무리 빠르게 눌러도 기본 상태가 반드시 한 번 보이도록 보장
-    setIdleFrame();
-    await wait(42);
+
+    // 클릭 상태를 먼저 보여 주고 최소 두 번의 화면 그리기를 기다립니다.
     setPressedFrame();
-    await wait(72);
+    await nextPaint();
+    await wait(82);
+
+    // 다음 클릭이 이미 들어왔더라도 기본 상태를 같은 시간만큼 반드시 보여 줍니다.
     setIdleFrame();
-    await wait(34);
+    await nextPaint();
+    await wait(82);
   }
+
+  setIdleFrame();
   pulseRunning=false;
+  // 실행 종료 직전에 새 클릭이 들어온 경우 즉시 다음 재생을 시작합니다.
+  if(pulseQueue>0)runPulseQueue();
 }
 function queuePulse(){
-  // 무한히 밀리지 않도록 최대 30회까지만 시각 효과를 대기시킴
-  pulseQueue=Math.min(pulseQueue+1,30);
+  // 매우 빠른 연타도 순서를 잃지 않되, 지나치게 긴 지연은 방지합니다.
+  pulseQueue=Math.min(pulseQueue+1,60);
   runPulseQueue();
 }
 function showFloat(e){const r=buttonEl.getBoundingClientRect(),el=document.createElement('span');el.className='float-score';el.textContent='+1';el.style.left=`${e?.clientX??r.width/2}px`;el.style.top=`${e?.clientY??r.height/2}px`;floatLayer.appendChild(el);setTimeout(()=>el.remove(),800)}
