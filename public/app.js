@@ -1,9 +1,10 @@
 'use strict';
-const ASSET_VERSION = 48;
+const ASSET_VERSION = 49;
 const $ = (s) => document.querySelector(s);
 
 const scoreEl = $('#score');
-const characterImage = $('#characterImage');
+const idleImage = $('#idleImage');
+let motionImages = [];
 const buttonEl = $('#characterButton');
 const authBtn = $('#authBtn');
 const authDialog = $('#authDialog');
@@ -34,6 +35,8 @@ const MOTIONS = [
   { threshold: 100000000, name: '마법책 콕', image: '/assets/motions/100000000.png' },
   { threshold: 1000000000, name: '축제 피날레 콕', image: '/assets/motions/1000000000.png' }
 ];
+
+motionImages = MOTIONS.map((_, index) => document.querySelector(`#motion${index}`));
 
 let token = localStorage.getItem('eungae_token') || '';
 let user = null;
@@ -161,23 +164,20 @@ function chooseMotion() {
   lastRandom = i;
   return pool[i];
 }
-const imageCache = new Map();
-function cachedAsset(path) {
-  return imageCache.get(path) || assetUrl(path);
-}
-function setCharacter(path, altText) {
-  const src = cachedAsset(path);
-  if (characterImage.getAttribute('src') !== src) characterImage.setAttribute('src', src);
-  characterImage.alt = altText;
-  characterImage.classList.add('is-visible');
+function hideAllFrames() {
+  idleImage.classList.remove('is-visible');
+  motionImages.forEach((img) => img?.classList.remove('is-visible'));
 }
 function showPressed() {
   const m = chooseMotion();
-  setCharacter(m.image, `응애공주 ${m.name}`);
+  hideAllFrames();
+  const target = motionImages[m.index] || motionImages[0];
+  if (target) target.classList.add('is-visible');
   buttonEl.classList.add('is-pressed');
 }
 function showIdle() {
-  setCharacter('/assets/idle-user.png', '응애공주 기본 상태');
+  hideAllFrames();
+  idleImage.classList.add('is-visible');
   buttonEl.classList.remove('is-pressed');
 }
 function stopClickAnimation() {
@@ -190,7 +190,7 @@ function playClickFrame() {
   settleTimer = setTimeout(() => {
     showIdle();
     settleTimer = null;
-  }, 260);
+  }, 520);
 }
 function showFloat(e) {
   const r = buttonEl.getBoundingClientRect();
@@ -410,8 +410,7 @@ async function bootGame() {
 
   await Promise.all(paths.map(async (path) => {
     try {
-      const img = await loadImage(assetUrl(path));
-      imageCache.set(path, img.src);
+      await loadImage(assetUrl(path));
     } catch (e) {
       failed++;
       console.error(e);
