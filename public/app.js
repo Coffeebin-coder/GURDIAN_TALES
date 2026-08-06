@@ -1,5 +1,5 @@
 'use strict';
-const ASSET_VERSION = 9;
+const ASSET_VERSION = 10;
 const $ = (s) => document.querySelector(s);
 const scoreEl=$('#score'),idleImage=$('#idleImage'),motionImage=$('#motionImage'),buttonEl=$('#characterButton'),authBtn=$('#authBtn');
 const authDialog=$('#authDialog'),motionDialog=$('#motionDialog'),authError=$('#authError'),motionError=$('#motionError');
@@ -20,6 +20,8 @@ let settleTimer=null,lastTapAt=0,rapidFrame=0;
 let motionMode=localStorage.getItem('eungae_motion_mode')||'random';
 let selectedMotion=Number(localStorage.getItem('eungae_selected_motion')||0),previousMotion=0;
 const processedImageMap = new Map();
+const processingImageMap = new Map();
+const objectUrls = new Set();
 const format=n=>new Intl.NumberFormat('ko-KR').format(Number(n)||0);
 const assetUrl = (path) => `${path}?v=${ASSET_VERSION}`;
 
@@ -38,19 +40,38 @@ async function auth(mode){authError.textContent='';try{const d=await api(`/api/a
 function chooseMotion(){const list=unlocked();if(motionMode==='single')return MOTIONS[selectedMotion]||list.at(-1)||MOTIONS[0];if(list.length===1)return list[0];let i=Math.floor(Math.random()*list.length);if(i===lastRandom)i=(i+1)%list.length;lastRandom=i;return list[i]}
 function setFrame(showMotion){idleImage.classList.toggle('is-visible',!showMotion);motionImage.classList.toggle('is-visible',showMotion);buttonEl.classList.toggle('is-pressed',showMotion)}
 function getProcessedSrc(path){return processedImageMap.get(path)||assetUrl(path)}
-function showPressed(){const m=chooseMotion();const nextSrc=getProcessedSrc(m.image);if(motionImage.getAttribute('src')!==nextSrc)motionImage.setAttribute('src',nextSrc);motionImage.alt=`응애공주 ${m.name}`;setFrame(true)}
+async function ensureProcessed(path){
+  if(processedImageMap.has(path))return processedImageMap.get(path);
+  if(processingImageMap.has(path))return processingImageMap.get(path);
+  const task=autoCutout(path).then(src=>{processedImageMap.set(path,src);processingImageMap.delete(path);return src;}).catch(err=>{console.error('누끼 처리 실패:',path,err);processingImageMap.delete(path);const fallback=assetUrl(path);processedImageMap.set(path,fallback);return fallback;});
+  processingImageMap.set(path,task);
+  return task;
+}
+function showPressed(){
+  const m=chooseMotion();
+  const currentPath=m.image;
+  const readySrc=getProcessedSrc(currentPath);
+  motionImage.alt=`응애공주 ${m.name}`;
+  motionImage.setAttribute('src',readySrc);
+  setFrame(true);
+  if(!processedImageMap.has(currentPath)){
+    ensureProcessed(currentPath).then(src=>{
+      if(buttonEl.classList.contains('is-pressed')&&motionImage.alt===`응애공주 ${m.name}`)motionImage.src=src;
+    });
+  }
+}
 function showIdle(){const nextSrc=getProcessedSrc('/assets/idle.png');if(idleImage.getAttribute('src')!==nextSrc)idleImage.setAttribute('src',nextSrc);setFrame(false)}
 function stopClickAnimation(){if(settleTimer){clearTimeout(settleTimer);settleTimer=null;}rapidFrame=0;showIdle()}
 function playClickFrame(){const now=performance.now();const isRapid=now-lastTapAt<210;lastTapAt=now;if(!isRapid)rapidFrame=0;const showMotion=rapidFrame%2===0;rapidFrame++;if(showMotion)showPressed();else showIdle();if(settleTimer)clearTimeout(settleTimer);settleTimer=setTimeout(()=>{rapidFrame=0;showIdle();settleTimer=null;},150)}
 function showFloat(e){const r=buttonEl.getBoundingClientRect(),el=document.createElement('span');el.className='float-score';el.textContent='+1';el.style.left=`${e?.clientX??r.width/2}px`;el.style.top=`${e?.clientY??r.height/2}px`;floatLayer.appendChild(el);setTimeout(()=>el.remove(),800)}
-function checkUnlock(){const now=motionIndex(localScore);if(now>previousMotion){selectedMotion=now;storePrefs();toastEl.innerHTML=`✨ ${MOTIONS[now].name}<br><small>새 모션 해금!</small>`;toastEl.classList.add('show');setTimeout(()=>toastEl.classList.remove('show'),2200)}previousMotion=now}
+function checkUnlock(){const now=motionIndex(localScore);if(now>previousMotion){selectedMotion=now;storePrefs();toastEl.innerHTML=`✨ ${MOTIONS[now].name}<br><small>새 모션 해금!</small>`;toastEl.classList.add('show');setTimeout(()=>toastEl.classList.remove('show'),2200);ensureProcessed(MOTIONS[now].image)}previousMotion=now}
 function optimistic(){if(!user)return;const rows=[...document.querySelectorAll('.rank-row')].map(r=>({username:r.dataset.username,clicks:Number(r.dataset.clicks)})).filter(x=>x.username);const f=rows.find(x=>x.username===user.username);if(f)f.clicks=localScore;else rows.push({username:user.username,clicks:localScore});rows.sort((a,b)=>b.clicks-a.clicks);renderLeaderboard(rows.slice(0,3))}
 async function flush(){clearTimeout(flushTimer);flushTimer=null;if(!token||pending<1)return;const amount=pending;pending=0;try{const d=await api('/api/clicks',{method:'POST',body:JSON.stringify({amount})});user=d.user;localScore=Math.max(localScore,user.clicks);applyUser(user);renderScore();renderLeaderboard(d.leaderboard)}catch(e){pending+=amount;console.error(e)}}
 function onClick(e){if(!user){authDialog.showModal();return}localScore++;pending++;playClickFrame();renderScore();checkUnlock();showFloat(e);optimistic();clearTimeout(flushTimer);flushTimer=setTimeout(flush,170)}
 async function loadBoard(){try{const d=await api('/api/leaderboard');renderLeaderboard(d.leaderboard)}catch(e){console.error(e)}}
 function events(){const es=new EventSource('/api/events');es.addEventListener('leaderboard',e=>{try{renderLeaderboard(JSON.parse(e.data))}catch{}});es.onerror=()=>{es.close();setTimeout(events,4000)}}
 function populateSettings(){normalize();motionSelect.innerHTML='';unlocked().forEach(m=>{const o=document.createElement('option');o.value=String(m.index);o.textContent=`${m.name} · ${format(m.threshold)} 클릭`;motionSelect.appendChild(o)});motionSelect.value=String(selectedMotion);const radio=document.querySelector(`input[name="motionMode"][value="${motionMode}"]`);if(radio)radio.checked=true;updateSettingsState()}
-function updateSettingsState(){const mode=document.querySelector('input[name="motionMode"]:checked')?.value||'random';motionSelect.disabled=mode!=='single';motionHint.textContent=mode==='random'?`해금된 ${unlocked().length}개 모션 중 하나가 매번 랜덤으로 나옵니다.`:'선택한 모션 하나만 계속 나옵니다.'}
+function updateSettingsState(){const mode=document.querySelector('input[name="motionMode"]:checked')?.value||'random';motionSelect.disabled=false;motionHint.textContent=mode==='random'?`해금된 ${unlocked().length}개 모션 중 하나가 매번 랜덤으로 나옵니다. 아래 목록에서 모션을 고르면 자동으로 고정 재생으로 바뀝니다.`:'선택한 모션 하나만 계속 나옵니다.'}
 async function saveSettings(){motionError.textContent='';motionMode=document.querySelector('input[name="motionMode"]:checked')?.value||'random';selectedMotion=Number(motionSelect.value||0);normalize();storePrefs();try{if(user){const d=await api('/api/preferences',{method:'PUT',body:JSON.stringify({motionMode,selectedMotion})});user=d.user;applyUser(user)}renderScore();motionDialog.close()}catch(e){motionError.textContent=e.message}}
 
 function loadImage(url){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.decoding='async';img.src=url;});}
@@ -121,22 +142,35 @@ async function autoCutout(path){
     }
   }
   ctx.putImageData(image,0,0);
-  return canvas.toDataURL('image/png');
+  const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('PNG 변환 실패')),'image/png'));
+  const url=URL.createObjectURL(blob);
+  objectUrls.add(url);
+  return url;
 }
-async function preprocessAllImages(){
-  const paths=['/assets/idle.png','/assets/pressed.png',...MOTIONS.filter(m=>m.threshold>0).map(m=>m.image)];
-  await Promise.all(paths.map(async(path)=>{try{processedImageMap.set(path,await autoCutout(path));}catch(e){console.error('누끼 처리 실패:',path,e);processedImageMap.set(path,assetUrl(path));}}));
+async function preprocessInitialImages(){
+  await ensureProcessed('/assets/idle.png');
   idleImage.src=getProcessedSrc('/assets/idle.png');
+  await ensureProcessed('/assets/pressed.png');
   motionImage.src=getProcessedSrc('/assets/pressed.png');
   showIdle();
+  preprocessUnlockedImages();
 }
+async function preprocessUnlockedImages(){
+  const paths=unlocked().map(m=>m.image).filter(path=>!processedImageMap.has(path)&&!processingImageMap.has(path));
+  for(const path of paths){
+    await ensureProcessed(path);
+    await new Promise(resolve=>setTimeout(resolve,30));
+  }
+}
+
 
 authBtn.addEventListener('click',async()=>{if(user){await flush();token='';user=null;localScore=0;localStorage.removeItem('eungae_token');updateAuth();renderScore()}else authDialog.showModal()});
 $('#motionSettingsBtn').addEventListener('click',()=>{populateSettings();motionDialog.showModal()});
 document.querySelectorAll('input[name="motionMode"]').forEach(x=>x.addEventListener('change',updateSettingsState));
+motionSelect.addEventListener('change',()=>{const single=document.querySelector('input[name="motionMode"][value="single"]');if(single)single.checked=true;updateSettingsState();});
 $('#saveMotionBtn').addEventListener('click',saveSettings);$('#loginBtn').addEventListener('click',()=>auth('login'));$('#registerBtn').addEventListener('click',()=>auth('register'));
 buttonEl.addEventListener('pointerdown',e=>{e.preventDefault();onClick(e)});
 window.addEventListener('blur',stopClickAnimation);
 window.addEventListener('keydown',e=>{if((e.code==='Space'||e.code==='Enter')&&!e.repeat&&!authDialog.open&&!motionDialog.open){e.preventDefault();onClick();}});
 
-renderLeaderboard();renderScore();restore();loadBoard();events();updateAuth();preprocessAllImages();
+renderLeaderboard();renderScore();restore().finally(()=>{preprocessInitialImages();});loadBoard();events();updateAuth();
