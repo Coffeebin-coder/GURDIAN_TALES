@@ -39,7 +39,7 @@ function setFrame(showMotion){
 }
 function showPressed(){
   const m=chooseMotion();
-  const nextSrc=`${m.image}?v=6`;
+  const nextSrc=`${m.image}?v=7`;
   if(motionImage.getAttribute('src')!==nextSrc)motionImage.setAttribute('src',nextSrc);
   motionImage.alt=`응애공주 ${m.name}`;
   setFrame(true);
@@ -75,7 +75,7 @@ function preloadMotionImages(){
   ['/assets/idle.png',...MOTIONS.map(m=>m.image)].forEach(src=>{
     const img=new Image();
     img.decoding='async';
-    img.src=`${src}?v=6`;
+    img.src=`${src}?v=7`;
   });
 }
 function showFloat(e){const r=buttonEl.getBoundingClientRect(),el=document.createElement('span');el.className='float-score';el.textContent='+1';el.style.left=`${e?.clientX??r.width/2}px`;el.style.top=`${e?.clientY??r.height/2}px`;floatLayer.appendChild(el);setTimeout(()=>el.remove(),800)}
