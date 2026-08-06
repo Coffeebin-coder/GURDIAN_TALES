@@ -1,5 +1,5 @@
 'use strict';
-const ASSET_VERSION = 15;
+const ASSET_VERSION = 16;
 const $ = (s) => document.querySelector(s);
 const scoreEl=$('#score'),idleImage=$('#idleImage'),motionImage=$('#motionImage'),buttonEl=$('#characterButton'),authBtn=$('#authBtn');
 const authDialog=$('#authDialog'),motionDialog=$('#motionDialog'),authError=$('#authError'),motionError=$('#motionError');
@@ -39,17 +39,17 @@ function renderLeaderboard(items=[]){const medals=['🥇','🥈','🥉'];podiumR
 async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};if(token)headers.Authorization=`Bearer ${token}`;const r=await fetch(path,{...options,headers});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'요청에 실패했습니다.');return d}
 function updateAuth(){authBtn.textContent=user?`${user.username} · 로그아웃`:'로그인'}
 function applyUser(u){if(!u)return;motionMode=u.motionMode||motionMode;selectedMotion=Number.isInteger(u.selectedMotion)?u.selectedMotion:selectedMotion;normalize();storePrefs()}
-async function restore(){if(!token){renderScore();return}try{const d=await api('/api/me');user=d.user;localScore=user.clicks;applyUser(user);previousMotion=motionIndex(localScore)}catch{token='';localStorage.removeItem('eungae_token')}updateAuth();renderScore()}
-async function auth(mode){authError.textContent='';try{const d=await api(`/api/auth/${mode}`,{method:'POST',body:JSON.stringify({username:$('#username').value.trim(),password:$('#password').value})});token=d.token;user=d.user;localScore=user.clicks;applyUser(user);previousMotion=motionIndex(localScore);localStorage.setItem('eungae_token',token);updateAuth();renderScore();authDialog.close()}catch(e){authError.textContent=e.message}}
+async function restore(){if(!token){renderScore();return}try{const d=await api('/api/me');user=d.user;localScore=user.clicks;applyUser(user);previousMotion=motionIndex(localScore);if(previousMotion>0&&selectedMotion===0){selectedMotion=previousMotion;motionMode='single';storePrefs()}}catch{token='';localStorage.removeItem('eungae_token')}updateAuth();renderScore()}
+async function auth(mode){authError.textContent='';try{const d=await api(`/api/auth/${mode}`,{method:'POST',body:JSON.stringify({username:$('#username').value.trim(),password:$('#password').value})});token=d.token;user=d.user;localScore=user.clicks;applyUser(user);previousMotion=motionIndex(localScore);if(previousMotion>0&&selectedMotion===0){selectedMotion=previousMotion;motionMode='single';storePrefs()};localStorage.setItem('eungae_token',token);updateAuth();renderScore();authDialog.close()}catch(e){authError.textContent=e.message}}
 function chooseMotion(){const list=unlocked();if(motionMode==='single')return MOTIONS[selectedMotion]||list.at(-1)||MOTIONS[0];if(list.length===1)return list[0];let i=Math.floor(Math.random()*list.length);if(i===lastRandom)i=(i+1)%list.length;lastRandom=i;return list[i]}
 function setFrame(showMotion){idleImage.classList.toggle('is-visible',!showMotion);motionImage.classList.toggle('is-visible',showMotion);buttonEl.classList.toggle('is-pressed',showMotion)}
 function getProcessedSrc(path){return processedImageMap.get(path)||assetUrl(path)}
 async function ensureProcessed(path){
   if(processedImageMap.has(path))return processedImageMap.get(path);
-  if(processingImageMap.has(path))return processingImageMap.get(path);
-  const task=autoCutout(path).then(src=>{processedImageMap.set(path,src);processingImageMap.delete(path);return src;}).catch(err=>{console.error('누끼 처리 실패:',path,err);processingImageMap.delete(path);const fallback=assetUrl(path);processedImageMap.set(path,fallback);return fallback;});
-  processingImageMap.set(path,task);
-  return task;
+  const src=assetUrl(path);
+  await loadImage(src);
+  processedImageMap.set(path,src);
+  return src;
 }
 function showPressed(){
   const m=chooseMotion();
@@ -67,7 +67,7 @@ function showIdle(){const nextSrc=getProcessedSrc('/assets/idle.png');if(idleIma
 function stopClickAnimation(){if(settleTimer){clearTimeout(settleTimer);settleTimer=null;}rapidFrame=0;showIdle()}
 function playClickFrame(){const now=performance.now();const isRapid=now-lastTapAt<210;lastTapAt=now;if(!isRapid)rapidFrame=0;const showMotion=rapidFrame%2===0;rapidFrame++;if(showMotion)showPressed();else showIdle();if(settleTimer)clearTimeout(settleTimer);settleTimer=setTimeout(()=>{rapidFrame=0;showIdle();settleTimer=null;},190)}
 function showFloat(e){const r=buttonEl.getBoundingClientRect(),el=document.createElement('span');el.className='float-score';el.textContent='+1';el.style.left=`${e?.clientX??r.width/2}px`;el.style.top=`${e?.clientY??r.height/2}px`;floatLayer.appendChild(el);setTimeout(()=>el.remove(),800)}
-function checkUnlock(){const now=motionIndex(localScore);if(now>previousMotion){selectedMotion=now;storePrefs();toastEl.innerHTML=`✨ ${MOTIONS[now].name}<br><small>새 모션 해금!</small>`;toastEl.classList.add('show');setTimeout(()=>toastEl.classList.remove('show'),2200);ensureProcessed(MOTIONS[now].image)}previousMotion=now}
+function checkUnlock(){const now=motionIndex(localScore);if(now>previousMotion){selectedMotion=now;motionMode='single';storePrefs();toastEl.innerHTML=`✨ ${MOTIONS[now].name}<br><small>새 모션 해금!</small>`;toastEl.classList.add('show');setTimeout(()=>toastEl.classList.remove('show'),2200);ensureProcessed(MOTIONS[now].image)}previousMotion=now}
 function optimistic(){if(!user)return;const rows=[...document.querySelectorAll('.rank-row')].map(r=>({username:r.dataset.username,clicks:Number(r.dataset.clicks)})).filter(x=>x.username);const f=rows.find(x=>x.username===user.username);if(f)f.clicks=localScore;else rows.push({username:user.username,clicks:localScore});rows.sort((a,b)=>b.clicks-a.clicks);renderLeaderboard(rows.slice(0,3))}
 async function flush(){clearTimeout(flushTimer);flushTimer=null;if(!token||pending<1)return;const amount=pending;pending=0;try{const d=await api('/api/clicks',{method:'POST',body:JSON.stringify({amount})});user=d.user;localScore=Math.max(localScore,user.clicks);applyUser(user);renderScore();renderLeaderboard(d.leaderboard)}catch(e){pending+=amount;console.error(e)}}
 function onClick(e){if(!gameReady)return;if(!user){authDialog.showModal();return}localScore++;pending++;playClickFrame();renderScore();checkUnlock();showFloat(e);optimistic();clearTimeout(flushTimer);flushTimer=setTimeout(flush,170)}
