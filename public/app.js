@@ -1,4 +1,5 @@
 'use strict';
+const ASSET_VERSION = 9;
 const $ = (s) => document.querySelector(s);
 const scoreEl=$('#score'),idleImage=$('#idleImage'),motionImage=$('#motionImage'),buttonEl=$('#characterButton'),authBtn=$('#authBtn');
 const authDialog=$('#authDialog'),motionDialog=$('#motionDialog'),authError=$('#authError'),motionError=$('#motionError');
@@ -18,7 +19,10 @@ let token=localStorage.getItem('eungae_token')||'',user=null,localScore=0,pendin
 let settleTimer=null,lastTapAt=0,rapidFrame=0;
 let motionMode=localStorage.getItem('eungae_motion_mode')||'random';
 let selectedMotion=Number(localStorage.getItem('eungae_selected_motion')||0),previousMotion=0;
+const processedImageMap = new Map();
 const format=n=>new Intl.NumberFormat('ko-KR').format(Number(n)||0);
+const assetUrl = (path) => `${path}?v=${ASSET_VERSION}`;
+
 function motionIndex(score){let i=0;MOTIONS.forEach((m,n)=>{if(score>=m.threshold)i=n});return i}
 function unlocked(){return MOTIONS.map((m,index)=>({...m,index})).filter(m=>localScore>=m.threshold)}
 function normalize(){const max=motionIndex(localScore);if(!['random','single'].includes(motionMode))motionMode='random';if(!Number.isInteger(selectedMotion)||selectedMotion<0||selectedMotion>max)selectedMotion=max}
@@ -32,52 +36,12 @@ function applyUser(u){if(!u)return;motionMode=u.motionMode||motionMode;selectedM
 async function restore(){if(!token){renderScore();return}try{const d=await api('/api/me');user=d.user;localScore=user.clicks;applyUser(user);previousMotion=motionIndex(localScore)}catch{token='';localStorage.removeItem('eungae_token')}updateAuth();renderScore()}
 async function auth(mode){authError.textContent='';try{const d=await api(`/api/auth/${mode}`,{method:'POST',body:JSON.stringify({username:$('#username').value.trim(),password:$('#password').value})});token=d.token;user=d.user;localScore=user.clicks;applyUser(user);previousMotion=motionIndex(localScore);localStorage.setItem('eungae_token',token);updateAuth();renderScore();authDialog.close()}catch(e){authError.textContent=e.message}}
 function chooseMotion(){const list=unlocked();if(motionMode==='single')return MOTIONS[selectedMotion]||list.at(-1)||MOTIONS[0];if(list.length===1)return list[0];let i=Math.floor(Math.random()*list.length);if(i===lastRandom)i=(i+1)%list.length;lastRandom=i;return list[i]}
-function setFrame(showMotion){
-  idleImage.classList.toggle('is-visible',!showMotion);
-  motionImage.classList.toggle('is-visible',showMotion);
-  buttonEl.classList.toggle('is-pressed',showMotion);
-}
-function showPressed(){
-  const m=chooseMotion();
-  const nextSrc=`${m.image}?v=7`;
-  if(motionImage.getAttribute('src')!==nextSrc)motionImage.setAttribute('src',nextSrc);
-  motionImage.alt=`응애공주 ${m.name}`;
-  setFrame(true);
-}
-function showIdle(){
-  setFrame(false);
-}
-function stopClickAnimation(){
-  if(settleTimer){clearTimeout(settleTimer);settleTimer=null;}
-  rapidFrame=0;
-  showIdle();
-}
-function playClickFrame(){
-  const now=performance.now();
-  const isRapid=now-lastTapAt<210;
-  lastTapAt=now;
-
-  // 느린 클릭은 항상 눌린 모습을 먼저 보여준다.
-  // 빠른 연타 중에는 클릭마다 기본/눌림을 정확히 번갈아 표시한다.
-  if(!isRapid)rapidFrame=0;
-  const showMotion=rapidFrame%2===0;
-  rapidFrame++;
-  if(showMotion)showPressed();else showIdle();
-
-  if(settleTimer)clearTimeout(settleTimer);
-  settleTimer=setTimeout(()=>{
-    rapidFrame=0;
-    showIdle();
-    settleTimer=null;
-  },150);
-}
-function preloadMotionImages(){
-  ['/assets/idle.png',...MOTIONS.map(m=>m.image)].forEach(src=>{
-    const img=new Image();
-    img.decoding='async';
-    img.src=`${src}?v=7`;
-  });
-}
+function setFrame(showMotion){idleImage.classList.toggle('is-visible',!showMotion);motionImage.classList.toggle('is-visible',showMotion);buttonEl.classList.toggle('is-pressed',showMotion)}
+function getProcessedSrc(path){return processedImageMap.get(path)||assetUrl(path)}
+function showPressed(){const m=chooseMotion();const nextSrc=getProcessedSrc(m.image);if(motionImage.getAttribute('src')!==nextSrc)motionImage.setAttribute('src',nextSrc);motionImage.alt=`응애공주 ${m.name}`;setFrame(true)}
+function showIdle(){const nextSrc=getProcessedSrc('/assets/idle.png');if(idleImage.getAttribute('src')!==nextSrc)idleImage.setAttribute('src',nextSrc);setFrame(false)}
+function stopClickAnimation(){if(settleTimer){clearTimeout(settleTimer);settleTimer=null;}rapidFrame=0;showIdle()}
+function playClickFrame(){const now=performance.now();const isRapid=now-lastTapAt<210;lastTapAt=now;if(!isRapid)rapidFrame=0;const showMotion=rapidFrame%2===0;rapidFrame++;if(showMotion)showPressed();else showIdle();if(settleTimer)clearTimeout(settleTimer);settleTimer=setTimeout(()=>{rapidFrame=0;showIdle();settleTimer=null;},150)}
 function showFloat(e){const r=buttonEl.getBoundingClientRect(),el=document.createElement('span');el.className='float-score';el.textContent='+1';el.style.left=`${e?.clientX??r.width/2}px`;el.style.top=`${e?.clientY??r.height/2}px`;floatLayer.appendChild(el);setTimeout(()=>el.remove(),800)}
 function checkUnlock(){const now=motionIndex(localScore);if(now>previousMotion){selectedMotion=now;storePrefs();toastEl.innerHTML=`✨ ${MOTIONS[now].name}<br><small>새 모션 해금!</small>`;toastEl.classList.add('show');setTimeout(()=>toastEl.classList.remove('show'),2200)}previousMotion=now}
 function optimistic(){if(!user)return;const rows=[...document.querySelectorAll('.rank-row')].map(r=>({username:r.dataset.username,clicks:Number(r.dataset.clicks)})).filter(x=>x.username);const f=rows.find(x=>x.username===user.username);if(f)f.clicks=localScore;else rows.push({username:user.username,clicks:localScore});rows.sort((a,b)=>b.clicks-a.clicks);renderLeaderboard(rows.slice(0,3))}
@@ -88,16 +52,91 @@ function events(){const es=new EventSource('/api/events');es.addEventListener('l
 function populateSettings(){normalize();motionSelect.innerHTML='';unlocked().forEach(m=>{const o=document.createElement('option');o.value=String(m.index);o.textContent=`${m.name} · ${format(m.threshold)} 클릭`;motionSelect.appendChild(o)});motionSelect.value=String(selectedMotion);const radio=document.querySelector(`input[name="motionMode"][value="${motionMode}"]`);if(radio)radio.checked=true;updateSettingsState()}
 function updateSettingsState(){const mode=document.querySelector('input[name="motionMode"]:checked')?.value||'random';motionSelect.disabled=mode!=='single';motionHint.textContent=mode==='random'?`해금된 ${unlocked().length}개 모션 중 하나가 매번 랜덤으로 나옵니다.`:'선택한 모션 하나만 계속 나옵니다.'}
 async function saveSettings(){motionError.textContent='';motionMode=document.querySelector('input[name="motionMode"]:checked')?.value||'random';selectedMotion=Number(motionSelect.value||0);normalize();storePrefs();try{if(user){const d=await api('/api/preferences',{method:'PUT',body:JSON.stringify({motionMode,selectedMotion})});user=d.user;applyUser(user)}renderScore();motionDialog.close()}catch(e){motionError.textContent=e.message}}
+
+function loadImage(url){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.decoding='async';img.src=url;});}
+function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+function colorDist(r1,g1,b1,r2,g2,b2){const dr=r1-r2,dg=g1-g2,db=b1-b2;return Math.sqrt(dr*dr+dg*dg+db*db)}
+function isMeadowTone(r,g,b){const max=Math.max(r,g,b),min=Math.min(r,g,b);const sat=max===0?0:(max-min)/max;const bright=max;
+  const green=(g>115&&g>=r-12&&g>=b-6&&(g-r>6||g-b>6));
+  const petal=(bright>192&&sat<0.18&&g>=r-18&&g>=b-10);
+  const yellow=(r>190&&g>176&&b<160&&Math.abs(r-g)<55);
+  return green||petal||yellow;
+}
+function buildEdgeSamples(data,w,h){const samples=[];const step=Math.max(4,Math.floor(Math.min(w,h)/30));
+  const push=(x,y)=>{const idx=(y*w+x)*4;const r=data[idx],g=data[idx+1],b=data[idx+2],a=data[idx+3];if(a<220||!isMeadowTone(r,g,b))return;for(const s of samples){if(colorDist(r,g,b,s.r,s.g,s.b)<20)return;}samples.push({r,g,b});};
+  for(let x=0;x<w;x+=step){push(x,0);push(x,h-1);}for(let y=0;y<h;y+=step){push(0,y);push(w-1,y);}return samples;
+}
+function backgroundLike(r,g,b,samples){
+  if(!isMeadowTone(r,g,b))return false;
+  for(const s of samples){if(colorDist(r,g,b,s.r,s.g,s.b)<50)return true;}
+  return false;
+}
+async function autoCutout(path){
+  const img=await loadImage(assetUrl(path));
+  const canvas=document.createElement('canvas');
+  canvas.width=img.naturalWidth||img.width;
+  canvas.height=img.naturalHeight||img.height;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(img,0,0);
+  const {width:w,height:h}=canvas;
+  const image=ctx.getImageData(0,0,w,h);
+  const data=image.data;
+  const samples=buildEdgeSamples(data,w,h);
+  if(!samples.length)return assetUrl(path);
+  const bg=new Uint8Array(w*h);
+  const visited=new Uint8Array(w*h);
+  const qx=new Int32Array(w*h);
+  const qy=new Int32Array(w*h);
+  let head=0,tail=0;
+  const enqueue=(x,y)=>{const pos=y*w+x;if(visited[pos])return;const idx=pos*4;const r=data[idx],g=data[idx+1],b=data[idx+2],a=data[idx+3];if(a<5||!backgroundLike(r,g,b,samples))return;visited[pos]=1;bg[pos]=1;qx[tail]=x;qy[tail]=y;tail++;};
+  for(let x=0;x<w;x++){enqueue(x,0);enqueue(x,h-1);}for(let y=0;y<h;y++){enqueue(0,y);enqueue(w-1,y);}
+  while(head<tail){const x=qx[head],y=qy[head];head++;if(x>0)enqueue(x-1,y);if(x<w-1)enqueue(x+1,y);if(y>0)enqueue(x,y-1);if(y<h-1)enqueue(x,y+1);}
+
+  // 배경과 바로 닿아 있는 꽃밭 찌꺼기만 한 번 더 정리한다.
+  for(let y=1;y<h-1;y++){
+    for(let x=1;x<w-1;x++){
+      const pos=y*w+x;if(bg[pos])continue;const idx=pos*4;const r=data[idx],g=data[idx+1],b=data[idx+2],a=data[idx+3];if(a<5||!backgroundLike(r,g,b,samples))continue;
+      let nearBg=0;
+      for(let oy=-1;oy<=1;oy++)for(let ox=-1;ox<=1;ox++){if(!ox&&!oy)continue;nearBg+=bg[(y+oy)*w+(x+ox)]?1:0;}
+      if(nearBg>=6)bg[pos]=1;
+    }
+  }
+
+  // 알파 처리 + 가장자리 부드럽게.
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const pos=y*w+x,idx=pos*4;
+      if(bg[pos]){data[idx+3]=0;continue;}
+      let nearBg=0;
+      for(let oy=-1;oy<=1;oy++){
+        for(let ox=-1;ox<=1;ox++){
+          if(!ox&&!oy)continue;
+          const nx=x+ox,ny=y+oy;
+          if(nx<0||ny<0||nx>=w||ny>=h)continue;
+          nearBg+=bg[ny*w+nx]?1:0;
+        }
+      }
+      if(nearBg>=5)data[idx+3]=Math.min(data[idx+3],210);
+      else if(nearBg>=3)data[idx+3]=Math.min(data[idx+3],235);
+    }
+  }
+  ctx.putImageData(image,0,0);
+  return canvas.toDataURL('image/png');
+}
+async function preprocessAllImages(){
+  const paths=['/assets/idle.png','/assets/pressed.png',...MOTIONS.filter(m=>m.threshold>0).map(m=>m.image)];
+  await Promise.all(paths.map(async(path)=>{try{processedImageMap.set(path,await autoCutout(path));}catch(e){console.error('누끼 처리 실패:',path,e);processedImageMap.set(path,assetUrl(path));}}));
+  idleImage.src=getProcessedSrc('/assets/idle.png');
+  motionImage.src=getProcessedSrc('/assets/pressed.png');
+  showIdle();
+}
+
 authBtn.addEventListener('click',async()=>{if(user){await flush();token='';user=null;localScore=0;localStorage.removeItem('eungae_token');updateAuth();renderScore()}else authDialog.showModal()});
 $('#motionSettingsBtn').addEventListener('click',()=>{populateSettings();motionDialog.showModal()});
 document.querySelectorAll('input[name="motionMode"]').forEach(x=>x.addEventListener('change',updateSettingsState));
 $('#saveMotionBtn').addEventListener('click',saveSettings);$('#loginBtn').addEventListener('click',()=>auth('login'));$('#registerBtn').addEventListener('click',()=>auth('register'));
 buttonEl.addEventListener('pointerdown',e=>{e.preventDefault();onClick(e)});
 window.addEventListener('blur',stopClickAnimation);
-window.addEventListener('keydown',e=>{
-  if((e.code==='Space'||e.code==='Enter')&&!e.repeat&&!authDialog.open&&!motionDialog.open){
-    e.preventDefault();
-    onClick();
-  }
-});
-preloadMotionImages();renderLeaderboard();renderScore();restore();loadBoard();events();
+window.addEventListener('keydown',e=>{if((e.code==='Space'||e.code==='Enter')&&!e.repeat&&!authDialog.open&&!motionDialog.open){e.preventDefault();onClick();}});
+
+renderLeaderboard();renderScore();restore();loadBoard();events();updateAuth();preprocessAllImages();
