@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#8ee847">
+  <meta name="description" content="응애공주를 클릭하고 실시간 TOP 3에 도전하세요.">
+  <title>응애공주</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="game" aria-label="응애공주 클릭 게임">
+    <button id="characterButton" class="screen-clicker" type="button" aria-label="응애공주 클릭">
+      <img id="characterImage" src="/assets/idle.png" alt="응애공주 기본 상태" draggable="false">
+    </button>
+
+    <header class="title-layer">
+      <h1>응애공주</h1>
+      <p>PRINCESS CLICK</p>
+    </header>
+
+    <section class="score-layer" aria-live="polite">
+      <span>누적 클릭</span>
+      <strong id="score">0</strong>
+      <small id="motionName">기본 모션</small>
+    </section>
+
+    <section class="ranking" aria-label="실시간 상위 3명">
+      <div class="ranking-head">
+        <strong>TOP 3</strong>
+        <span>LIVE</span>
+      </div>
+      <div id="podiumRows" class="ranking-rows"></div>
+    </section>
+
+    <nav class="actions" aria-label="게임 메뉴">
+      <button id="motionSettingsBtn" type="button">⚙ 모션</button>
+      <button id="authBtn" type="button">로그인</button>
+    </nav>
+
+    <div class="tap-guide" aria-hidden="true">TAP!</div>
+    <div id="unlockToast" class="unlock-toast" role="status" aria-live="polite"></div>
+    <div id="floatLayer" class="float-layer" aria-hidden="true"></div>
+  </main>
+
+  <dialog id="authDialog" class="popup">
+    <form method="dialog" class="popup-card" id="authForm">
+      <button class="close" value="cancel" aria-label="닫기">×</button>
+      <h2>응애공주 입장</h2>
+      <p>로그인하면 클릭 수와 모션 설정이 서버에 저장됩니다.</p>
+      <label>닉네임<input id="username" autocomplete="username" maxlength="16" required></label>
+      <label>비밀번호<input id="password" type="password" autocomplete="current-password" maxlength="72" required></label>
+      <div id="authError" class="error"></div>
+      <div class="popup-actions">
+        <button id="loginBtn" type="button">로그인</button>
+        <button id="registerBtn" type="button" class="mint">회원가입</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="motionDialog" class="popup">
+    <form method="dialog" class="popup-card motion-card">
+      <button class="close" value="cancel" aria-label="닫기">×</button>
+      <h2>클릭 모션 설정</h2>
+      <p>해금한 모션을 랜덤으로 재생하거나 하나만 고정할 수 있습니다.</p>
+      <fieldset class="mode-list">
+        <label><input type="radio" name="motionMode" value="random"><span><strong>랜덤 재생</strong><small>해금된 모션 중 매번 무작위로 표시</small></span></label>
+        <label><input type="radio" name="motionMode" value="single"><span><strong>한 개만 재생</strong><small>선택한 모션 하나만 계속 표시</small></span></label>
+      </fieldset>
+      <label class="select-label">고정할 모션
+        <select id="motionSelect"></select>
+      </label>
+      <p id="motionSettingHint" class="hint"></p>
+      <div id="motionError" class="error"></div>
+      <div class="popup-actions one">
+        <button id="saveMotionBtn" type="button">설정 저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>
