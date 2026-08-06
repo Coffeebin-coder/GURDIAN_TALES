@@ -1,5 +1,5 @@
 'use strict';
-const ASSET_VERSION = 50;
+const ASSET_VERSION = 51;
 const $ = (s) => document.querySelector(s);
 
 const scoreEl = $('#score');
@@ -44,6 +44,8 @@ let pending = 0;
 let flushTimer = null;
 let settleTimer = null;
 let lastRandom = -1;
+let randomBag = [];
+const preloadedImages = new Map();
 let previousMotion = 0;
 let gameReady = false;
 let bootReleased = false;
@@ -51,7 +53,7 @@ let loadingSkipTimer = null;
 let bootSafetyTimer = null;
 let audioCtx = null;
 
-let forceRandomMigration = localStorage.getItem('eungae_motion_pref_version') !== '50';
+let forceRandomMigration = localStorage.getItem('eungae_motion_pref_version') !== '51';
 let motionMode = forceRandomMigration ? 'random' : (localStorage.getItem('eungae_motion_mode') || 'random');
 let selectedMotion = Number(localStorage.getItem('eungae_selected_motion') || 0);
 let soundEnabled = (localStorage.getItem('eungae_sound_enabled') || '1') !== '0';
@@ -76,14 +78,17 @@ function storePrefs() {
   localStorage.setItem('eungae_motion_mode', motionMode);
   localStorage.setItem('eungae_selected_motion', String(selectedMotion));
   localStorage.setItem('eungae_sound_enabled', soundEnabled ? '1' : '0');
-  localStorage.setItem('eungae_motion_pref_version', '50');
+  localStorage.setItem('eungae_motion_pref_version', '51');
+}
+function motionLabel(motion) {
+  return motion.threshold === 0 ? '기본' : `${motion.threshold}개`;
 }
 function renderScore() {
   normalize();
   scoreEl.textContent = format(localScore);
   motionNameEl.textContent = motionMode === 'random'
     ? `랜덤 · ${unlocked().length}개 해금`
-    : `고정 · ${MOTIONS[selectedMotion].name}`;
+    : `고정 · ${motionLabel(MOTIONS[selectedMotion])}`;
 }
 function escapeHtml(v) {
   return String(v).replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
@@ -170,19 +175,36 @@ async function auth(mode) {
     authError.textContent = e.message;
   }
 }
+function shuffle(items) {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
 function chooseMotion() {
-  const pool = unlocked();
+  const allUnlocked = unlocked();
   if (motionMode === 'single') {
-    return MOTIONS[selectedMotion] || pool.at(-1) || MOTIONS[0];
+    return MOTIONS[selectedMotion] || allUnlocked.at(-1) || MOTIONS[0];
   }
 
-  if (pool.length <= 1) {
-    lastRandom = pool[0]?.index ?? 0;
-    return pool[0] || MOTIONS[0];
+  // 해금 모션이 하나라도 있으면 기본 클릭 이미지는 랜덤 후보에서 제외한다.
+  // 따라서 1000개 이상부터는 해금 이미지가 반드시 실제로 표시된다.
+  const specials = allUnlocked.filter((m) => m.threshold > 0);
+  const pool = specials.length ? specials : allUnlocked;
+
+  const validIndexes = new Set(pool.map((m) => m.index));
+  randomBag = randomBag.filter((index) => validIndexes.has(index));
+  if (randomBag.length === 0) {
+    randomBag = shuffle(pool.map((m) => m.index));
+    if (randomBag.length > 1 && randomBag[0] === lastRandom) {
+      [randomBag[0], randomBag[1]] = [randomBag[1], randomBag[0]];
+    }
   }
 
-  const candidates = pool.filter((m) => m.index !== lastRandom);
-  const selected = candidates[Math.floor(Math.random() * candidates.length)] || pool[0];
+  const nextIndex = randomBag.shift();
+  const selected = MOTIONS[nextIndex] || pool[0] || MOTIONS[0];
   lastRandom = selected.index;
   return selected;
 }
@@ -193,10 +215,9 @@ function setVisibleFrame(frame) {
 }
 function showPressed() {
   const m = chooseMotion();
-  const nextSrc = assetUrl(m.image);
-  if (motionImage.getAttribute('src') !== nextSrc) {
-    motionImage.setAttribute('src', nextSrc);
-  }
+  const cached = preloadedImages.get(m.image);
+  const nextSrc = cached?.src || assetUrl(m.image);
+  motionImage.src = nextSrc;
   motionImage.alt = m.threshold === 0
     ? '응애공주 기본 클릭 모션'
     : `${m.threshold}개 클릭 해금 모션`;
@@ -241,7 +262,7 @@ function checkUnlock() {
         body: JSON.stringify({ motionMode, selectedMotion })
       }).catch(() => {});
     }
-    toastEl.innerHTML = `✨ ${MOTIONS[now].name}<br><small>새 모션 해금!</small>`;
+    toastEl.innerHTML = `✨ ${motionLabel(MOTIONS[now])}<br><small>새 이미지 해금!</small>`;
     toastEl.classList.add('show');
     setTimeout(() => toastEl.classList.remove('show'), 2200);
   }
@@ -339,9 +360,7 @@ function populateSettings() {
   unlocked().forEach((m) => {
     const o = document.createElement('option');
     o.value = String(m.index);
-    o.textContent = m.threshold === 0
-      ? '기본 이미지 · 0개'
-      : `${m.threshold}개 · ${m.name}`;
+    o.textContent = motionLabel(m);
     motionSelect.appendChild(o);
   });
   motionSelect.value = String(selectedMotion);
@@ -393,6 +412,7 @@ function loadImage(url) {
       try { if (typeof img.decode === 'function') await img.decode(); } catch {}
       settled = true;
       clearTimeout(timer);
+      preloadedImages.set(url.split('?')[0], img);
       resolve(img);
     };
     img.onerror = () => {
@@ -417,7 +437,7 @@ function releaseGame(failed, total) {
   clearTimeout(loadingSkipTimer);
   clearTimeout(bootSafetyTimer);
   loadingSkipBtn.classList.remove('is-visible');
-  motionImage.setAttribute('src', assetUrl(MOTIONS[0].image));
+  motionImage.src = preloadedImages.get(MOTIONS[0].image)?.src || assetUrl(MOTIONS[0].image);
   showIdle();
   gameReady = true;
   gameEl.classList.remove('is-loading');
