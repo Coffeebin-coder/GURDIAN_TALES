@@ -15,10 +15,10 @@
 @media(max-height:650px) and (min-width:761px){.title-layer h1{font-size:44px}.score-layer{top:70px}.score-layer strong{font-size:55px}.ranking{width:255px;padding:8px}.rank-row{padding:5px}.tap-guide{bottom:9px}}
 
 
-/* V9: 모든 캐릭터/모션 PNG는 투명 배경 누끼 이미지입니다. */
+/* V10: 모든 캐릭터/모션 PNG는 투명 배경 누끼 이미지입니다. */
 .game{
   background-color:#a8eb62;
-  background-image:url("/assets/field-background.png?v=9");
+  background-image:url("/assets/field-background.png?v=10");
   background-position:center;
   background-size:cover;
   background-repeat:no-repeat;
