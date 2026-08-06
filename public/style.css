@@ -14,3 +14,46 @@
 @media(max-width:430px){.title-layer{top:62px}.score-layer{top:112px}.ranking{font-size:10px}.rank-medal{font-size:14px}.rank-name{font-size:9px}.rank-score{font-size:8px}.actions{left:8px;right:8px;justify-content:space-between}.actions button{max-width:46vw}.tap-guide{bottom:84px}.character-frame{object-position:center;transform:scale(.84)}}
 @media(max-height:650px) and (min-width:761px){.title-layer h1{font-size:44px}.score-layer{top:70px}.score-layer strong{font-size:55px}.ranking{width:255px;padding:8px}.rank-row{padding:5px}.tap-guide{bottom:9px}}
 
+
+/* V9: 모든 캐릭터/모션 PNG는 투명 배경 누끼 이미지입니다. */
+.game{
+  background-color:#a8eb62;
+  background-image:url("/assets/field-background.png?v=9");
+  background-position:center;
+  background-size:cover;
+  background-repeat:no-repeat;
+}
+.screen-clicker{
+  display:grid;
+  place-items:center;
+}
+.character-frame{
+  inset:auto;
+  margin:0;
+  width:min(48vh,480px);
+  height:min(48vh,480px);
+  max-width:52vw;
+  max-height:52vw;
+  object-fit:contain;
+  object-position:center;
+  transform:none;
+  image-rendering:auto;
+  filter:drop-shadow(0 12px 8px rgba(58,90,20,.20));
+}
+.motion-frame{
+  filter:drop-shadow(0 12px 8px rgba(58,90,20,.20)) saturate(1.04) brightness(1.02);
+}
+@media(max-width:760px){
+  .character-frame{
+    width:min(52vw,320px);
+    height:min(52vw,320px);
+    max-width:52vh;
+    max-height:52vh;
+  }
+}
+@media(max-height:650px) and (min-width:761px){
+  .character-frame{
+    width:min(43vh,360px);
+    height:min(43vh,360px);
+  }
+}
