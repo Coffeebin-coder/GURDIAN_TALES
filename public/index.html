@@ -6,25 +6,24 @@
   <meta name="theme-color" content="#8ee847">
   <meta name="description" content="응애공주를 클릭하고 실시간 TOP 3에 도전하세요.">
   <title>응애공주</title>
-  <link rel="stylesheet" href="/style.css?v=25">
+  <link rel="stylesheet" href="/style.css?v=47">
 </head>
 <body>
-  
   <div id="loadingScreen" class="loading-screen" role="status" aria-live="polite" aria-label="게임 이미지 로딩 중">
     <div class="loading-card">
       <div class="loading-crown" aria-hidden="true">♛</div>
       <strong>응애공주 준비 중</strong>
       <p id="loadingText">이미지를 불러오고 있어요…</p>
       <div class="loading-track" aria-hidden="true"><span id="loadingBar"></span></div>
-      <small id="loadingCount">0 / 11</small>
+      <small id="loadingCount">0 / 10</small>
       <button id="loadingSkipBtn" class="loading-skip" type="button">지금 바로 시작</button>
     </div>
   </div>
 
   <main class="game is-loading" aria-label="응애공주 클릭 게임">
     <button id="characterButton" class="screen-clicker" type="button" aria-label="응애공주 클릭">
-      <img id="idleImage" class="character-frame idle-frame is-visible" src="/assets/idle-v25.png?v=14" alt="응애공주 기본 상태" draggable="false">
-      <img id="motionImage" class="character-frame motion-frame" src="/assets/pressed-v25.png?v=14" alt="응애공주 클릭 상태" draggable="false">
+      <img id="idleImage" class="character-frame idle-frame is-visible" src="/assets/idle-user.png?v=47" alt="응애공주 기본 상태" draggable="false">
+      <img id="motionImage" class="character-frame motion-frame" src="/assets/pressed-user.png?v=47" alt="응애공주 클릭 상태" draggable="false">
     </button>
 
     <header class="title-layer">
@@ -35,7 +34,7 @@
     <section class="score-layer" aria-live="polite">
       <span>누적 클릭</span>
       <strong id="score">0</strong>
-      <small id="motionName">기본 모션</small>
+      <small id="motionName">기본 콕</small>
     </section>
 
     <section class="ranking" aria-label="실시간 상위 3명">
@@ -95,6 +94,6 @@
     </form>
   </dialog>
 
-  <script src="/app.js?v=25" defer></script>
+  <script src="/app.js?v=47" defer></script>
 </body>
 </html>
