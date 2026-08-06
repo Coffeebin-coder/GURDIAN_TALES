@@ -1,5 +1,5 @@
 'use strict';
-const ASSET_VERSION = 24;
+const ASSET_VERSION = 25;
 const $ = (s) => document.querySelector(s);
 
 const scoreEl = $('#score');
@@ -26,15 +26,15 @@ const loadingSkipBtn = $('#loadingSkipBtn');
 const gameEl = $('.game');
 
 const MOTIONS = [
-  { threshold: 0, name: '기본 콕', image: '/assets/pressed.png' },
-  { threshold: 1000, name: '반짝 콕', image: '/assets/motions/1000.png' },
-  { threshold: 10000, name: '꽃송이 콕', image: '/assets/motions/10000.png' },
-  { threshold: 100000, name: '무지개 점프', image: '/assets/motions/100000.png' },
-  { threshold: 1000000, name: '황금 공주광', image: '/assets/motions/1000000.png' },
-  { threshold: 10000000, name: '별빛 회오리', image: '/assets/motions/10000000.png' },
-  { threshold: 100000000, name: '보석 꽃축제', image: '/assets/motions/100000000.png' },
-  { threshold: 1000000000, name: '꼬마공주 소환', image: '/assets/motions/1000000000.png' },
-  { threshold: 10000000000, name: '응애공주 대축제', image: '/assets/motions/10000000000.png' }
+  { threshold: 0, name: '기본 콕', image: '/assets/pressed-v25.png' },
+  { threshold: 1000, name: '반짝 콕', image: '/assets/motions/motion-1000-v25.png' },
+  { threshold: 10000, name: '꽃송이 콕', image: '/assets/motions/motion-10000-v25.png' },
+  { threshold: 100000, name: '무지개 점프', image: '/assets/motions/motion-100000-v25.png' },
+  { threshold: 1000000, name: '황금 공주광', image: '/assets/motions/motion-1000000-v25.png' },
+  { threshold: 10000000, name: '별빛 회오리', image: '/assets/motions/motion-10000000-v25.png' },
+  { threshold: 100000000, name: '보석 꽃축제', image: '/assets/motions/motion-100000000-v25.png' },
+  { threshold: 1000000000, name: '꼬마공주 소환', image: '/assets/motions/motion-1000000000-v25.png' },
+  { threshold: 10000000000, name: '응애공주 대축제', image: '/assets/motions/motion-10000000000-v25.png' }
 ];
 
 let token = localStorage.getItem('eungae_token') || '';
@@ -191,7 +191,7 @@ function showPressed() {
   setFrame(true);
 }
 function showIdle() {
-  setImg(idleImage, '/assets/idle.png', '응애공주 기본 상태');
+  setImg(idleImage, '/assets/idle-v25.png', '응애공주 기본 상태');
   setFrame(false);
 }
 function stopClickAnimation() {
@@ -406,8 +406,8 @@ function releaseGame(failed) {
   clearTimeout(loadingSkipTimer);
   clearTimeout(bootSafetyTimer);
   loadingSkipBtn.classList.remove('is-visible');
-  setImg(idleImage, '/assets/idle.png', '응애공주 기본 상태');
-  setImg(motionImage, '/assets/pressed.png', '응애공주 클릭 상태');
+  setImg(idleImage, '/assets/idle-v25.png', '응애공주 기본 상태');
+  setImg(motionImage, '/assets/pressed-v25.png', '응애공주 클릭 상태');
   showIdle();
   gameReady = true;
   gameEl.classList.remove('is-loading');
@@ -422,7 +422,7 @@ function skipBoot() {
 async function bootGame() {
   const paths = [
     '/assets/field-background.png',
-    '/assets/idle.png',
+    '/assets/idle-v25.png',
     ...MOTIONS.map((m) => m.image)
   ];
   let done = 0;
