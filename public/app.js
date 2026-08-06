@@ -1,10 +1,9 @@
 'use strict';
-const ASSET_VERSION = 51;
+const ASSET_VERSION = 52;
 const $ = (s) => document.querySelector(s);
 
 const scoreEl = $('#score');
-const idleImage = $('#idleImage');
-const motionImage = $('#motionImage');
+const characterImage = $('#characterImage');
 const buttonEl = $('#characterButton');
 const authBtn = $('#authBtn');
 const authDialog = $('#authDialog');
@@ -53,7 +52,7 @@ let loadingSkipTimer = null;
 let bootSafetyTimer = null;
 let audioCtx = null;
 
-let forceRandomMigration = localStorage.getItem('eungae_motion_pref_version') !== '51';
+let forceRandomMigration = localStorage.getItem('eungae_motion_pref_version') !== '52';
 let motionMode = forceRandomMigration ? 'random' : (localStorage.getItem('eungae_motion_mode') || 'random');
 let selectedMotion = Number(localStorage.getItem('eungae_selected_motion') || 0);
 let soundEnabled = (localStorage.getItem('eungae_sound_enabled') || '1') !== '0';
@@ -78,7 +77,7 @@ function storePrefs() {
   localStorage.setItem('eungae_motion_mode', motionMode);
   localStorage.setItem('eungae_selected_motion', String(selectedMotion));
   localStorage.setItem('eungae_sound_enabled', soundEnabled ? '1' : '0');
-  localStorage.setItem('eungae_motion_pref_version', '51');
+  localStorage.setItem('eungae_motion_pref_version', '52');
 }
 function motionLabel(motion) {
   return motion.threshold === 0 ? '기본' : `${motion.threshold}개`;
@@ -184,47 +183,38 @@ function shuffle(items) {
   return copy;
 }
 function chooseMotion() {
-  const allUnlocked = unlocked();
+  const pool = unlocked();
   if (motionMode === 'single') {
-    return MOTIONS[selectedMotion] || allUnlocked.at(-1) || MOTIONS[0];
+    return MOTIONS[selectedMotion] || pool.at(-1) || MOTIONS[0];
   }
 
-  // 해금 모션이 하나라도 있으면 기본 클릭 이미지는 랜덤 후보에서 제외한다.
-  // 따라서 1000개 이상부터는 해금 이미지가 반드시 실제로 표시된다.
-  const specials = allUnlocked.filter((m) => m.threshold > 0);
-  const pool = specials.length ? specials : allUnlocked;
-
-  const validIndexes = new Set(pool.map((m) => m.index));
-  randomBag = randomBag.filter((index) => validIndexes.has(index));
+  // 랜덤 모드: 기본 눌림 이미지 + 현재까지 해금된 이미지 전체를 섞어서 순환
+  const validIndexes = pool.map((m) => m.index);
+  randomBag = randomBag.filter((index) => validIndexes.includes(index));
   if (randomBag.length === 0) {
-    randomBag = shuffle(pool.map((m) => m.index));
+    randomBag = shuffle(validIndexes);
     if (randomBag.length > 1 && randomBag[0] === lastRandom) {
       [randomBag[0], randomBag[1]] = [randomBag[1], randomBag[0]];
     }
   }
-
   const nextIndex = randomBag.shift();
   const selected = MOTIONS[nextIndex] || pool[0] || MOTIONS[0];
   lastRandom = selected.index;
   return selected;
 }
-function setVisibleFrame(frame) {
-  idleImage.classList.toggle('is-visible', frame === 'idle');
-  motionImage.classList.toggle('is-visible', frame === 'motion');
-  buttonEl.classList.toggle('is-pressed', frame === 'motion');
+function setCharacterImage(path, alt) {
+  const cached = preloadedImages.get(path);
+  characterImage.src = cached?.src || assetUrl(path);
+  characterImage.alt = alt || '응애공주';
 }
 function showPressed() {
   const m = chooseMotion();
-  const cached = preloadedImages.get(m.image);
-  const nextSrc = cached?.src || assetUrl(m.image);
-  motionImage.src = nextSrc;
-  motionImage.alt = m.threshold === 0
-    ? '응애공주 기본 클릭 모션'
-    : `${m.threshold}개 클릭 해금 모션`;
-  setVisibleFrame('motion');
+  setCharacterImage(m.image, motionLabel(m));
+  buttonEl.classList.add('is-pressed');
 }
 function showIdle() {
-  setVisibleFrame('idle');
+  setCharacterImage('/assets/idle-user.png', '응애공주 기본 상태');
+  buttonEl.classList.remove('is-pressed');
 }
 function stopClickAnimation() {
   if (settleTimer) {
@@ -239,7 +229,7 @@ function playClickFrame() {
   settleTimer = setTimeout(() => {
     showIdle();
     settleTimer = null;
-  }, 650);
+  }, 700);
 }
 function showFloat(e) {
   const r = buttonEl.getBoundingClientRect();
@@ -253,6 +243,7 @@ function showFloat(e) {
 }
 function checkUnlock() {
   const now = motionIndex(localScore);
+  randomBag = [];
   if (now > previousMotion) {
     selectedMotion = now;
     storePrefs();
@@ -373,7 +364,7 @@ function updateSettingsState() {
   const mode = document.querySelector('input[name="motionMode"]:checked')?.value || 'random';
   motionSelect.disabled = false;
   motionHint.textContent = mode === 'random'
-    ? `기본 이미지를 포함해 해금된 ${unlocked().length}개 이미지가 클릭할 때마다 랜덤으로 나옵니다.`
+    ? `기본 포함 ${unlocked().length}개 이미지가 클릭할 때마다 순서가 섞여 나옵니다.`
     : '선택한 모션 하나만 계속 나옵니다.';
 }
 async function saveSettings() {
@@ -382,6 +373,7 @@ async function saveSettings() {
   selectedMotion = Number(motionSelect.value || 0);
   soundEnabled = !!soundToggle.checked;
   normalize();
+  randomBag = [];
   storePrefs();
   try {
     if (user) {
@@ -437,7 +429,6 @@ function releaseGame(failed, total) {
   clearTimeout(loadingSkipTimer);
   clearTimeout(bootSafetyTimer);
   loadingSkipBtn.classList.remove('is-visible');
-  motionImage.src = preloadedImages.get(MOTIONS[0].image)?.src || assetUrl(MOTIONS[0].image);
   showIdle();
   gameReady = true;
   gameEl.classList.remove('is-loading');
