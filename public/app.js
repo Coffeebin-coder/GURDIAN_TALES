@@ -15,7 +15,7 @@ const MOTIONS=[
 {threshold:1000000000,name:'꼬마공주 소환',image:'/assets/motions/1000000000.png'},
 {threshold:10000000000,name:'응애공주 대축제',image:'/assets/motions/10000000000.png'}];
 let token=localStorage.getItem('eungae_token')||'',user=null,localScore=0,pending=0,flushTimer,lastRandom=-1;
-let pulseQueue=0,pulseRunning=false,animationGeneration=0;
+let animationTimer=null,lastTapAt=0,framePressed=false;
 let motionMode=localStorage.getItem('eungae_motion_mode')||'random';
 let selectedMotion=Number(localStorage.getItem('eungae_selected_motion')||0),previousMotion=0;
 const format=n=>new Intl.NumberFormat('ko-KR').format(Number(n)||0);
@@ -32,53 +32,41 @@ function applyUser(u){if(!u)return;motionMode=u.motionMode||motionMode;selectedM
 async function restore(){if(!token){renderScore();return}try{const d=await api('/api/me');user=d.user;localScore=user.clicks;applyUser(user);previousMotion=motionIndex(localScore)}catch{token='';localStorage.removeItem('eungae_token')}updateAuth();renderScore()}
 async function auth(mode){authError.textContent='';try{const d=await api(`/api/auth/${mode}`,{method:'POST',body:JSON.stringify({username:$('#username').value.trim(),password:$('#password').value})});token=d.token;user=d.user;localScore=user.clicks;applyUser(user);previousMotion=motionIndex(localScore);localStorage.setItem('eungae_token',token);updateAuth();renderScore();authDialog.close()}catch(e){authError.textContent=e.message}}
 function chooseMotion(){const list=unlocked();if(motionMode==='single')return MOTIONS[selectedMotion]||list.at(-1)||MOTIONS[0];if(list.length===1)return list[0];let i=Math.floor(Math.random()*list.length);if(i===lastRandom)i=(i+1)%list.length;lastRandom=i;return list[i]}
-const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-const nextPaint=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-function setIdleFrame(){
-  imageEl.src='/assets/idle-character.png?v=4';
-  imageEl.alt='응애공주 기본 상태';
-  buttonEl.classList.remove('is-pressed');
-}
-function setPressedFrame(){
+function showPressed(){
   const m=chooseMotion();
-  imageEl.src=`${m.image}?v=4`;
+  imageEl.src=`${m.image}?v=5`;
   imageEl.alt=`응애공주 ${m.name}`;
   buttonEl.classList.add('is-pressed');
+  framePressed=true;
 }
-async function runPulseQueue(){
-  if(pulseRunning)return;
-  pulseRunning=true;
-  const generation=++animationGeneration;
-
-  while(pulseQueue>0 && generation===animationGeneration){
-    pulseQueue--;
-
-    // 클릭 상태를 먼저 보여 주고 최소 두 번의 화면 그리기를 기다립니다.
-    setPressedFrame();
-    await nextPaint();
-    await wait(82);
-
-    // 다음 클릭이 이미 들어왔더라도 기본 상태를 같은 시간만큼 반드시 보여 줍니다.
-    setIdleFrame();
-    await nextPaint();
-    await wait(82);
+function showIdle(){
+  imageEl.src='/assets/idle.png?v=5';
+  imageEl.alt='응애공주 기본 상태';
+  buttonEl.classList.remove('is-pressed');
+  framePressed=false;
+}
+function stopClickAnimation(){
+  if(animationTimer){clearInterval(animationTimer);animationTimer=null;}
+  showIdle();
+}
+function keepClickAnimationAlive(){
+  lastTapAt=performance.now();
+  if(!animationTimer){
+    showPressed();
+    animationTimer=setInterval(()=>{
+      if(performance.now()-lastTapAt>125){
+        stopClickAnimation();
+        return;
+      }
+      if(framePressed)showIdle();else showPressed();
+    },62);
   }
-
-  setIdleFrame();
-  pulseRunning=false;
-  // 실행 종료 직전에 새 클릭이 들어온 경우 즉시 다음 재생을 시작합니다.
-  if(pulseQueue>0)runPulseQueue();
-}
-function queuePulse(){
-  // 매우 빠른 연타도 순서를 잃지 않되, 지나치게 긴 지연은 방지합니다.
-  pulseQueue=Math.min(pulseQueue+1,60);
-  runPulseQueue();
 }
 function showFloat(e){const r=buttonEl.getBoundingClientRect(),el=document.createElement('span');el.className='float-score';el.textContent='+1';el.style.left=`${e?.clientX??r.width/2}px`;el.style.top=`${e?.clientY??r.height/2}px`;floatLayer.appendChild(el);setTimeout(()=>el.remove(),800)}
 function checkUnlock(){const now=motionIndex(localScore);if(now>previousMotion){selectedMotion=now;storePrefs();toastEl.innerHTML=`✨ ${MOTIONS[now].name}<br><small>새 모션 해금!</small>`;toastEl.classList.add('show');setTimeout(()=>toastEl.classList.remove('show'),2200)}previousMotion=now}
 function optimistic(){if(!user)return;const rows=[...document.querySelectorAll('.rank-row')].map(r=>({username:r.dataset.username,clicks:Number(r.dataset.clicks)})).filter(x=>x.username);const f=rows.find(x=>x.username===user.username);if(f)f.clicks=localScore;else rows.push({username:user.username,clicks:localScore});rows.sort((a,b)=>b.clicks-a.clicks);renderLeaderboard(rows.slice(0,3))}
 async function flush(){clearTimeout(flushTimer);flushTimer=null;if(!token||pending<1)return;const amount=pending;pending=0;try{const d=await api('/api/clicks',{method:'POST',body:JSON.stringify({amount})});user=d.user;localScore=Math.max(localScore,user.clicks);applyUser(user);renderScore();renderLeaderboard(d.leaderboard)}catch(e){pending+=amount;console.error(e)}}
-function onClick(e){if(!user){authDialog.showModal();return}localScore++;pending++;queuePulse();renderScore();checkUnlock();showFloat(e);optimistic();clearTimeout(flushTimer);flushTimer=setTimeout(flush,170)}
+function onClick(e){if(!user){authDialog.showModal();return}localScore++;pending++;keepClickAnimationAlive();renderScore();checkUnlock();showFloat(e);optimistic();clearTimeout(flushTimer);flushTimer=setTimeout(flush,170)}
 async function loadBoard(){try{const d=await api('/api/leaderboard');renderLeaderboard(d.leaderboard)}catch(e){console.error(e)}}
 function events(){const es=new EventSource('/api/events');es.addEventListener('leaderboard',e=>{try{renderLeaderboard(JSON.parse(e.data))}catch{}});es.onerror=()=>{es.close();setTimeout(events,4000)}}
 function populateSettings(){normalize();motionSelect.innerHTML='';unlocked().forEach(m=>{const o=document.createElement('option');o.value=String(m.index);o.textContent=`${m.name} · ${format(m.threshold)} 클릭`;motionSelect.appendChild(o)});motionSelect.value=String(selectedMotion);const radio=document.querySelector(`input[name="motionMode"][value="${motionMode}"]`);if(radio)radio.checked=true;updateSettingsState()}
@@ -89,5 +77,11 @@ $('#motionSettingsBtn').addEventListener('click',()=>{populateSettings();motionD
 document.querySelectorAll('input[name="motionMode"]').forEach(x=>x.addEventListener('change',updateSettingsState));
 $('#saveMotionBtn').addEventListener('click',saveSettings);$('#loginBtn').addEventListener('click',()=>auth('login'));$('#registerBtn').addEventListener('click',()=>auth('register'));
 buttonEl.addEventListener('pointerdown',e=>{e.preventDefault();onClick(e)});
-window.addEventListener('keydown',e=>{if((e.code==='Space'||e.code==='Enter')&&!e.repeat&&!authDialog.open&&!motionDialog.open){e.preventDefault();onClick();}});
+window.addEventListener('blur',stopClickAnimation);
+window.addEventListener('keydown',e=>{
+  if((e.code==='Space'||e.code==='Enter')&&!e.repeat&&!authDialog.open&&!motionDialog.open){
+    e.preventDefault();
+    onClick();
+  }
+});
 renderLeaderboard();renderScore();restore();loadBoard();events();
