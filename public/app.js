@@ -1,5 +1,5 @@
 'use strict';
-const ASSET_VERSION = 17;
+const ASSET_VERSION = 19;
 const $ = (s) => document.querySelector(s);
 const scoreEl=$('#score'),idleImage=$('#idleImage'),motionImage=$('#motionImage'),buttonEl=$('#characterButton'),authBtn=$('#authBtn');
 const authDialog=$('#authDialog'),motionDialog=$('#motionDialog'),authError=$('#authError'),motionError=$('#motionError');
@@ -44,36 +44,25 @@ async function restore(){if(!token){renderScore();return}try{const d=await api('
 async function auth(mode){authError.textContent='';try{const d=await api(`/api/auth/${mode}`,{method:'POST',body:JSON.stringify({username:$('#username').value.trim(),password:$('#password').value})});token=d.token;user=d.user;localScore=user.clicks;applyUser(user);previousMotion=motionIndex(localScore);if(previousMotion>0&&selectedMotion===0){selectedMotion=previousMotion;motionMode='single';storePrefs()};localStorage.setItem('eungae_token',token);updateAuth();renderScore();authDialog.close()}catch(e){authError.textContent=e.message}}
 function chooseMotion(){const list=unlocked();if(motionMode==='single')return MOTIONS[selectedMotion]||list.at(-1)||MOTIONS[0];if(list.length===1)return list[0];let i=Math.floor(Math.random()*list.length);if(i===lastRandom)i=(i+1)%list.length;lastRandom=i;return list[i]}
 function setFrame(showMotion){idleImage.classList.toggle('is-visible',!showMotion);motionImage.classList.toggle('is-visible',showMotion);buttonEl.classList.toggle('is-pressed',showMotion)}
-function fallbackPathFor(path){if(path==='/assets/idle.png')return '/assets/pressed.png';if(path==='/assets/field-background.png')return '/assets/field-background.png';return '/assets/pressed.png';}
 function getProcessedSrc(path){return processedImageMap.get(path)||assetUrl(path)}
-function noteAssetFailure(path,message){failedAssetPaths.add(path);loadWarnings.push(message);console.warn(message)}
+function noteAssetFailure(path,message){failedAssetPaths.add(path);loadWarnings.push(message);console.error(message)}
 function loadImage(url){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error(`이미지 로드 실패: ${url}`));img.decoding='async';img.src=url;});}
 async function ensureProcessed(path){
   if(processedImageMap.has(path))return processedImageMap.get(path);
-  const primary=assetUrl(path);
-  let finalSrc=primary;
-  try{await loadImage(primary);}catch(err){
-    const fallbackPath=fallbackPathFor(path);
-    finalSrc=assetUrl(fallbackPath);
-    noteAssetFailure(path,`${path} 이미지를 불러오지 못해서 ${fallbackPath}로 대체합니다.`);
-    if(finalSrc!==primary){
-      try{await loadImage(finalSrc);}catch(err2){noteAssetFailure(fallbackPath,`${fallbackPath} 대체 이미지도 불러오지 못했습니다.`)}
-    }
-  }
-  processedImageMap.set(path,finalSrc);
-  return finalSrc;
+  const src=assetUrl(path);
+  await loadImage(src);
+  processedImageMap.set(path,src);
+  return src;
 }
-async function safeEnsureProcessed(path){try{return await ensureProcessed(path)}catch(err){console.error(err);const fallback=assetUrl(fallbackPathFor(path));processedImageMap.set(path,fallback);return fallback}}
+async function safeEnsureProcessed(path){
+  try{return await ensureProcessed(path)}catch(err){
+    noteAssetFailure(path,`${path} 이미지를 불러오지 못했습니다. 서버에 해당 파일이 있는지 확인하세요.`);
+    return assetUrl(path);
+  }
+}
 function setImageSource(imgEl,path){
-  const desired=getProcessedSrc(path)||assetUrl(path);
-  const fallback=assetUrl(fallbackPathFor(path));
-  imgEl.dataset.fallbackApplied='0';
-  imgEl.onerror=()=>{
-    if(imgEl.dataset.fallbackApplied==='1')return;
-    imgEl.dataset.fallbackApplied='1';
-    noteAssetFailure(path,`${path} 화면 표시 중 오류가 나서 대체 이미지를 사용합니다.`);
-    if(imgEl.getAttribute('src')!==fallback)imgEl.setAttribute('src',fallback);
-  };
+  const desired=getProcessedSrc(path);
+  imgEl.onerror=()=>noteAssetFailure(path,`${path} 화면 표시 중 오류가 발생했습니다.`);
   if(imgEl.getAttribute('src')!==desired)imgEl.setAttribute('src',desired);
 }
 function showPressed(){const m=chooseMotion();motionImage.alt=`응애공주 ${m.name}`;setImageSource(motionImage,m.image);setFrame(true)}
