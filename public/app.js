@@ -1,5 +1,5 @@
 'use strict';
-const ASSET_VERSION = 14;
+const ASSET_VERSION = 15;
 const $ = (s) => document.querySelector(s);
 const scoreEl=$('#score'),idleImage=$('#idleImage'),motionImage=$('#motionImage'),buttonEl=$('#characterButton'),authBtn=$('#authBtn');
 const authDialog=$('#authDialog'),motionDialog=$('#motionDialog'),authError=$('#authError'),motionError=$('#motionError');
@@ -45,11 +45,6 @@ function chooseMotion(){const list=unlocked();if(motionMode==='single')return MO
 function setFrame(showMotion){idleImage.classList.toggle('is-visible',!showMotion);motionImage.classList.toggle('is-visible',showMotion);buttonEl.classList.toggle('is-pressed',showMotion)}
 function getProcessedSrc(path){return processedImageMap.get(path)||assetUrl(path)}
 async function ensureProcessed(path){
-  if(path.includes('/assets/motions/')){
-    const original=assetUrl(path);
-    processedImageMap.set(path,original);
-    return original;
-  }
   if(processedImageMap.has(path))return processedImageMap.get(path);
   if(processingImageMap.has(path))return processingImageMap.get(path);
   const task=autoCutout(path).then(src=>{processedImageMap.set(path,src);processingImageMap.delete(path);return src;}).catch(err=>{console.error('누끼 처리 실패:',path,err);processingImageMap.delete(path);const fallback=assetUrl(path);processedImageMap.set(path,fallback);return fallback;});
@@ -208,7 +203,11 @@ async function bootGame(){
   }));
 
   updateLoading(paths.length,paths.length,'캐릭터를 준비하고 있어요…');
-  await Promise.all([ensureProcessed('/assets/idle.png'),ensureProcessed('/assets/pressed.png')]);
+  // 모든 캐릭터/모션 이미지를 실제로 누끼 처리한다.
+  // 동시에 처리하면 모바일에서 메모리가 크게 튈 수 있어 순차 처리한다.
+  for(const path of ['/assets/idle.png', ...MOTIONS.map(m=>m.image)]){
+    await ensureProcessed(path);
+  }
   const idleSrc=getProcessedSrc('/assets/idle.png');
   const pressedSrc=getProcessedSrc('/assets/pressed.png');
   await Promise.all([loadImage(idleSrc),loadImage(pressedSrc)]);
