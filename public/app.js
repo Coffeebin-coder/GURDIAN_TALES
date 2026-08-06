@@ -1,5 +1,5 @@
 'use strict';
-const ASSET_VERSION = 13;
+const ASSET_VERSION = 14;
 const $ = (s) => document.querySelector(s);
 const scoreEl=$('#score'),idleImage=$('#idleImage'),motionImage=$('#motionImage'),buttonEl=$('#characterButton'),authBtn=$('#authBtn');
 const authDialog=$('#authDialog'),motionDialog=$('#motionDialog'),authError=$('#authError'),motionError=$('#motionError');
@@ -21,9 +21,11 @@ let settleTimer=null,lastTapAt=0,rapidFrame=0;
 let motionMode=localStorage.getItem('eungae_motion_mode')||'random';
 let selectedMotion=Number(localStorage.getItem('eungae_selected_motion')||0),previousMotion=0;
 let gameReady=false;
+const readyAssetPaths = new Set();
 const processedImageMap = new Map();
 const processingImageMap = new Map();
 const objectUrls = new Set();
+const decodedImageCache = new Map();
 const format=n=>new Intl.NumberFormat('ko-KR').format(Number(n)||0);
 const assetUrl = (path) => `${path}?v=${ASSET_VERSION}`;
 
@@ -56,23 +58,15 @@ async function ensureProcessed(path){
 }
 function showPressed(){
   const m=chooseMotion();
-  const currentPath=m.image;
-  const nextSrc=currentPath.includes('/assets/motions/') ? assetUrl(currentPath) : getProcessedSrc(currentPath);
+  const nextSrc=getProcessedSrc(m.image);
   motionImage.alt=`응애공주 ${m.name}`;
-  const reveal=()=>{motionImage.onload=null;motionImage.onerror=null;setFrame(true);};
-  if(motionImage.getAttribute('src')===nextSrc && motionImage.complete && motionImage.naturalWidth>0){
-    reveal();
-    return;
+
+  // bootGame에서 모든 이미지를 이미 로딩·디코딩했으므로
+  // 클릭 시 onload를 다시 기다리지 않고 즉시 화면을 교체한다.
+  if(motionImage.getAttribute('src')!==nextSrc){
+    motionImage.setAttribute('src',nextSrc);
   }
-  motionImage.onload=reveal;
-  motionImage.onerror=()=>{
-    console.error('모션 이미지 로드 실패:',nextSrc);
-    motionImage.onload=null;
-    motionImage.onerror=null;
-    motionImage.src=assetUrl('/assets/pressed.png');
-    setFrame(true);
-  };
-  motionImage.src=nextSrc;
+  setFrame(true);
 }
 function showIdle(){const nextSrc=getProcessedSrc('/assets/idle.png');if(idleImage.getAttribute('src')!==nextSrc)idleImage.setAttribute('src',nextSrc);setFrame(false)}
 function stopClickAnimation(){if(settleTimer){clearTimeout(settleTimer);settleTimer=null;}rapidFrame=0;showIdle()}
@@ -166,14 +160,28 @@ async function preloadOne(path){
   return new Promise((resolve)=>{
     const img=new Image();
     let done=false;
-    const finish=(ok)=>{if(done)return;done=true;clearTimeout(timer);resolve({path,ok});};
-    const timer=setTimeout(()=>finish(false),7000);
-    img.onload=()=>{
-      if(typeof img.decode==='function')img.decode().catch(()=>{}).finally(()=>finish(true));
-      else finish(true);
+    const finish=(ok)=>{
+      if(done)return;
+      done=true;
+      clearTimeout(timer);
+      if(ok){
+        decodedImageCache.set(path,img);
+        readyAssetPaths.add(path);
+      }
+      resolve({path,ok});
+    };
+    const timer=setTimeout(()=>finish(false),8000);
+    img.onload=async()=>{
+      try{
+        if(typeof img.decode==='function')await img.decode();
+        finish(true);
+      }catch{
+        // onload가 성공했으면 decode 오류가 있어도 브라우저가 이미지를 표시할 수 있다.
+        finish(true);
+      }
     };
     img.onerror=()=>finish(false);
-    img.decoding='async';
+    img.decoding='sync';
     img.src=url;
   });
 }
@@ -201,8 +209,11 @@ async function bootGame(){
 
   updateLoading(paths.length,paths.length,'캐릭터를 준비하고 있어요…');
   await Promise.all([ensureProcessed('/assets/idle.png'),ensureProcessed('/assets/pressed.png')]);
-  idleImage.src=getProcessedSrc('/assets/idle.png');
-  motionImage.src=getProcessedSrc('/assets/pressed.png');
+  const idleSrc=getProcessedSrc('/assets/idle.png');
+  const pressedSrc=getProcessedSrc('/assets/pressed.png');
+  await Promise.all([loadImage(idleSrc),loadImage(pressedSrc)]);
+  idleImage.src=idleSrc;
+  motionImage.src=pressedSrc;
   showIdle();
 
   gameReady=true;
