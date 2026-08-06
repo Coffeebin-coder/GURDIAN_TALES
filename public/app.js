@@ -1,5 +1,5 @@
 'use strict';
-const ASSET_VERSION = 25;
+const ASSET_VERSION = 47;
 const $ = (s) => document.querySelector(s);
 
 const scoreEl = $('#score');
@@ -26,15 +26,14 @@ const loadingSkipBtn = $('#loadingSkipBtn');
 const gameEl = $('.game');
 
 const MOTIONS = [
-  { threshold: 0, name: '기본 콕', image: '/assets/pressed-v25.png' },
-  { threshold: 1000, name: '반짝 콕', image: '/assets/motions/motion-1000-v25.png' },
-  { threshold: 10000, name: '꽃송이 콕', image: '/assets/motions/motion-10000-v25.png' },
-  { threshold: 100000, name: '무지개 점프', image: '/assets/motions/motion-100000-v25.png' },
-  { threshold: 1000000, name: '황금 공주광', image: '/assets/motions/motion-1000000-v25.png' },
-  { threshold: 10000000, name: '별빛 회오리', image: '/assets/motions/motion-10000000-v25.png' },
-  { threshold: 100000000, name: '보석 꽃축제', image: '/assets/motions/motion-100000000-v25.png' },
-  { threshold: 1000000000, name: '꼬마공주 소환', image: '/assets/motions/motion-1000000000-v25.png' },
-  { threshold: 10000000000, name: '응애공주 대축제', image: '/assets/motions/motion-10000000000-v25.png' }
+  { threshold: 0, name: '기본 콕', image: '/assets/pressed-user.png' },
+  { threshold: 1000, name: '반짝 미소 콕', image: '/assets/motions/1000.png' },
+  { threshold: 10000, name: '무지개 콕', image: '/assets/motions/10000.png' },
+  { threshold: 100000, name: '하트 분신 콕', image: '/assets/motions/100000.png' },
+  { threshold: 1000000, name: '황금 오라 콕', image: '/assets/motions/1000000.png' },
+  { threshold: 10000000, name: '강화 오라 콕', image: '/assets/motions/10000000.png' },
+  { threshold: 100000000, name: '마법책 콕', image: '/assets/motions/100000000.png' },
+  { threshold: 1000000000, name: '축제 피날레 콕', image: '/assets/motions/1000000000.png' }
 ];
 
 let token = localStorage.getItem('eungae_token') || '';
@@ -43,8 +42,6 @@ let localScore = 0;
 let pending = 0;
 let flushTimer = null;
 let settleTimer = null;
-let lastTapAt = 0;
-let rapidFrame = 0;
 let lastRandom = -1;
 let previousMotion = 0;
 let gameReady = false;
@@ -127,11 +124,6 @@ async function restore() {
     localScore = user.clicks;
     applyUser(user);
     previousMotion = motionIndex(localScore);
-    if (previousMotion > 0 && selectedMotion === 0) {
-      selectedMotion = previousMotion;
-      motionMode = 'single';
-      storePrefs();
-    }
   } catch {
     token = '';
     localStorage.removeItem('eungae_token');
@@ -151,11 +143,6 @@ async function auth(mode) {
     localScore = user.clicks;
     applyUser(user);
     previousMotion = motionIndex(localScore);
-    if (previousMotion > 0 && selectedMotion === 0) {
-      selectedMotion = previousMotion;
-      motionMode = 'single';
-      storePrefs();
-    }
     localStorage.setItem('eungae_token', token);
     updateAuth();
     renderScore();
@@ -191,16 +178,14 @@ function showPressed() {
   setFrame(true);
 }
 function showIdle() {
-  setImg(idleImage, '/assets/idle-v25.png', '응애공주 기본 상태');
+  setImg(idleImage, '/assets/idle-user.png', '응애공주 기본 상태');
   setFrame(false);
 }
 function stopClickAnimation() {
   if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
-  rapidFrame = 0;
   showIdle();
 }
 function playClickFrame() {
-  lastTapAt = performance.now();
   showPressed();
   if (settleTimer) clearTimeout(settleTimer);
   settleTimer = setTimeout(() => {
@@ -341,7 +326,7 @@ function updateSettingsState() {
   const mode = document.querySelector('input[name="motionMode"]:checked')?.value || 'random';
   motionSelect.disabled = false;
   motionHint.textContent = mode === 'random'
-    ? `해금된 ${unlocked().length}개 모션 중 하나가 매번 랜덤으로 나옵니다. 아래 목록에서 모션을 고르면 자동으로 고정 재생으로 바뀝니다.`
+    ? `해금된 ${unlocked().length}개 모션 중 하나가 매번 랜덤으로 나옵니다.`
     : '선택한 모션 하나만 계속 나옵니다.';
 }
 async function saveSettings() {
@@ -377,9 +362,7 @@ function loadImage(url) {
     }, 8000);
     img.onload = async () => {
       if (settled) return;
-      try {
-        if (typeof img.decode === 'function') await img.decode();
-      } catch {}
+      try { if (typeof img.decode === 'function') await img.decode(); } catch {}
       settled = true;
       clearTimeout(timer);
       resolve(img);
@@ -400,34 +383,31 @@ function updateLoading(done, total, label) {
   loadingCount.textContent = `${done} / ${total}`;
   loadingText.textContent = label || `이미지를 불러오고 있어요… ${percent}%`;
 }
-function releaseGame(failed) {
+function releaseGame(failed, total) {
   if (bootReleased) return;
   bootReleased = true;
   clearTimeout(loadingSkipTimer);
   clearTimeout(bootSafetyTimer);
   loadingSkipBtn.classList.remove('is-visible');
-  setImg(idleImage, '/assets/idle-v25.png', '응애공주 기본 상태');
-  setImg(motionImage, '/assets/pressed-v25.png', '응애공주 클릭 상태');
+  setImg(idleImage, '/assets/idle-user.png', '응애공주 기본 상태');
+  setImg(motionImage, '/assets/pressed-user.png', '응애공주 클릭 상태');
   showIdle();
   gameReady = true;
   gameEl.classList.remove('is-loading');
   loadingBar.style.width = '100%';
-  loadingCount.textContent = `11 / 11`;
+  loadingCount.textContent = `${total} / ${total}`;
   loadingText.textContent = failed ? `일부 이미지 ${failed}개 확인 필요 · 게임은 시작됩니다.` : '준비 완료!';
   setTimeout(() => loadingScreen.classList.add('is-hidden'), failed ? 700 : 250);
 }
 function skipBoot() {
-  releaseGame(0);
+  releaseGame(0, 10);
 }
 async function bootGame() {
-  const paths = [
-    '/assets/field-background.png',
-    '/assets/idle-v25.png',
-    ...MOTIONS.map((m) => m.image)
-  ];
+  const paths = ['/assets/field-background.png', '/assets/idle-user.png', ...MOTIONS.map((m) => m.image)];
+  const total = paths.length;
   let done = 0;
   let failed = 0;
-  updateLoading(0, paths.length, '이미지를 불러오고 있어요…');
+  updateLoading(0, total, '이미지를 불러오고 있어요…');
   loadingSkipTimer = setTimeout(() => loadingSkipBtn.classList.add('is-visible'), 3200);
   bootSafetyTimer = setTimeout(() => skipBoot(), 12000);
 
@@ -439,11 +419,11 @@ async function bootGame() {
       console.error(e);
     } finally {
       done++;
-      updateLoading(done, paths.length, `이미지를 준비하고 있어요… ${Math.round(done / paths.length * 100)}%`);
+      updateLoading(done, total, `이미지를 준비하고 있어요… ${Math.round(done / total * 100)}%`);
     }
   }));
 
-  releaseGame(failed);
+  releaseGame(failed, total);
 }
 
 authBtn.addEventListener('click', async () => {
