@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#8ee847">
   <meta name="description" content="응애공주를 클릭하고 실시간 TOP 3에 도전하세요.">
   <title>응애공주</title>
-  <link rel="stylesheet" href="/style.css?v=16">
+  <link rel="stylesheet" href="/style.css?v=17">
 </head>
 <body>
   
@@ -17,6 +17,7 @@
       <p id="loadingText">이미지를 불러오고 있어요…</p>
       <div class="loading-track" aria-hidden="true"><span id="loadingBar"></span></div>
       <small id="loadingCount">0 / 11</small>
+      <button id="loadingSkipBtn" class="loading-skip" type="button">지금 바로 시작</button>
     </div>
   </div>
 
@@ -73,8 +74,8 @@
   <dialog id="motionDialog" class="popup">
     <form method="dialog" class="popup-card motion-card">
       <button class="close" value="cancel" aria-label="닫기">×</button>
-      <h2>클릭 모션 설정</h2>
-      <p>해금한 모션을 랜덤으로 재생하거나 하나만 고정할 수 있습니다.</p>
+      <h2>클릭/소리 설정</h2>
+      <p>해금한 모션을 랜덤으로 재생하거나 하나만 고정하고, 클릭 소리도 켜거나 끌 수 있습니다.</p>
       <fieldset class="mode-list">
         <label><input type="radio" name="motionMode" value="random"><span><strong>랜덤 재생</strong><small>해금된 모션 중 매번 무작위로 표시</small></span></label>
         <label><input type="radio" name="motionMode" value="single"><span><strong>한 개만 재생</strong><small>선택한 모션 하나만 계속 표시</small></span></label>
@@ -83,6 +84,10 @@
         <select id="motionSelect"></select>
       </label>
       <p id="motionSettingHint" class="hint"></p>
+      <label class="toggle-row setting-group">
+        <input id="soundEnabled" type="checkbox">
+        <span><strong>클릭 소리 켜기</strong><small>클릭할 때 짧은 효과음이 재생됩니다. 원하면 여기서 바로 음소거할 수 있어요.</small></span>
+      </label>
       <div id="motionError" class="error"></div>
       <div class="popup-actions one">
         <button id="saveMotionBtn" type="button">설정 저장</button>
@@ -90,6 +95,6 @@
     </form>
   </dialog>
 
-  <script src="/app.js?v=16" defer></script>
+  <script src="/app.js?v=17" defer></script>
 </body>
 </html>
