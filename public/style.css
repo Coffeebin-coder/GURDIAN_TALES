@@ -62,7 +62,7 @@ a,button,input,select,dialog{outline:none}
     radial-gradient(circle at 56% 72%, rgba(255,255,255,.94) 0 10px, transparent 11px),
     radial-gradient(circle at 58% 75%, rgba(255,245,170,.95) 0 4px, transparent 5px),
     linear-gradient(to bottom, rgba(176,237,111,.55), rgba(137,216,77,.18)),
-    url("/assets/bg-day.png?v=62") center/cover no-repeat;
+    url("/assets/bg-day.png?v=63") center/cover no-repeat;
   filter:saturate(1.04) brightness(1.03);
 }
 .game::before,.game::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;transition:opacity .35s ease}
@@ -339,9 +339,9 @@ a,button,input,select,dialog{outline:none}
 }
 .sky-layer,.hill-layer,.field-layer{display:none!important;background:none!important}
 .game::before,.game::after{display:none!important;content:none!important}
-.game.bg-default{background-image:url('/assets/bg-day.png?v=62')}
-.game.bg-sunset{background-image:url('/assets/bg-sunset.png?v=62')}
-.game.bg-night{background-image:url('/assets/bg-night.png?v=62')}
+.game.bg-default{background-image:url('/assets/bg-day.png?v=63')}
+.game.bg-sunset{background-image:url('/assets/bg-sunset.png?v=63')}
+.game.bg-night{background-image:url('/assets/bg-night.png?v=63')}
 .background-preview{
   height:110px;
   background-position:center bottom!important;
@@ -498,4 +498,40 @@ a,button,input,select,dialog{outline:none}
   .title-status .helper-income{max-width:58vw;font-size:7px}
   .helper-thumb{height:116px!important;min-height:116px}
   .helper-grid .shop-item{grid-template-rows:116px auto auto 1fr!important}
+}
+
+
+/* V63 - 해금 모션은 src 교체가 아니라 이미 로드된 레이어를 직접 전환 */
+.motion-deck{
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  pointer-events:none;
+}
+.motion-deck .motion-frame{
+  visibility:hidden;
+  opacity:0;
+  pointer-events:none;
+  z-index:3;
+}
+.motion-deck .motion-frame.is-visible{
+  visibility:visible;
+  opacity:1;
+}
+.idle-frame{
+  z-index:2;
+  visibility:hidden;
+  opacity:0;
+}
+.idle-frame.is-visible{
+  visibility:visible;
+  opacity:1;
+}
+.motion-frame.motion-pop{
+  animation:v63MotionPop .18s steps(2,end) both;
+}
+@keyframes v63MotionPop{
+  0%{transform:scale(.965)}
+  100%{transform:scale(1.025)}
 }
