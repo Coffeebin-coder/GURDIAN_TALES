@@ -1,9 +1,10 @@
 'use strict';
-const ASSET_VERSION = 52;
+const ASSET_VERSION = 53;
 const $ = (s) => document.querySelector(s);
 
 const scoreEl = $('#score');
-const characterImage = $('#characterImage');
+const idleImage = $('#idleImage');
+const motionImages = [...document.querySelectorAll('.motion-image')];
 const buttonEl = $('#characterButton');
 const authBtn = $('#authBtn');
 const authDialog = $('#authDialog');
@@ -52,7 +53,7 @@ let loadingSkipTimer = null;
 let bootSafetyTimer = null;
 let audioCtx = null;
 
-let forceRandomMigration = localStorage.getItem('eungae_motion_pref_version') !== '52';
+let forceRandomMigration = localStorage.getItem('eungae_motion_pref_version') !== '53';
 let motionMode = forceRandomMigration ? 'random' : (localStorage.getItem('eungae_motion_mode') || 'random');
 let selectedMotion = Number(localStorage.getItem('eungae_selected_motion') || 0);
 let soundEnabled = (localStorage.getItem('eungae_sound_enabled') || '1') !== '0';
@@ -77,10 +78,10 @@ function storePrefs() {
   localStorage.setItem('eungae_motion_mode', motionMode);
   localStorage.setItem('eungae_selected_motion', String(selectedMotion));
   localStorage.setItem('eungae_sound_enabled', soundEnabled ? '1' : '0');
-  localStorage.setItem('eungae_motion_pref_version', '52');
+  localStorage.setItem('eungae_motion_pref_version', '53');
 }
 function motionLabel(motion) {
-  return motion.threshold === 0 ? '기본' : `${motion.threshold}개`;
+  return motion.threshold === 0 ? '기본' : `${motion.threshold.toLocaleString('ko-KR')}개`;
 }
 function renderScore() {
   normalize();
@@ -188,8 +189,12 @@ function chooseMotion() {
     return MOTIONS[selectedMotion] || pool.at(-1) || MOTIONS[0];
   }
 
-  // 랜덤 모드: 기본 눌림 이미지 + 현재까지 해금된 이미지 전체를 섞어서 순환
-  const validIndexes = pool.map((m) => m.index);
+  // 랜덤 모드에서는 해금 이미지가 하나라도 있으면 기본 이미지를 제외한다.
+  // 따라서 1000개를 넘긴 사용자는 1000개 이미지가 반드시 보인다.
+  const specials = pool.filter((m) => m.index > 0);
+  const candidates = specials.length > 0 ? specials : [MOTIONS[0]];
+  const validIndexes = candidates.map((m) => m.index);
+
   randomBag = randomBag.filter((index) => validIndexes.includes(index));
   if (randomBag.length === 0) {
     randomBag = shuffle(validIndexes);
@@ -197,23 +202,31 @@ function chooseMotion() {
       [randomBag[0], randomBag[1]] = [randomBag[1], randomBag[0]];
     }
   }
+
   const nextIndex = randomBag.shift();
-  const selected = MOTIONS[nextIndex] || pool[0] || MOTIONS[0];
+  const selected = MOTIONS[nextIndex] || candidates[0];
   lastRandom = selected.index;
   return selected;
 }
-function setCharacterImage(path, alt) {
-  const cached = preloadedImages.get(path);
-  characterImage.src = cached?.src || assetUrl(path);
-  characterImage.alt = alt || '응애공주';
+function hideAllFrames() {
+  idleImage.classList.remove('is-visible');
+  motionImages.forEach((img) => img.classList.remove('is-visible'));
 }
 function showPressed() {
   const m = chooseMotion();
-  setCharacterImage(m.image, motionLabel(m));
+  hideAllFrames();
+  const target = motionImages.find((img) => Number(img.dataset.motionIndex) === m.index);
+  if (target) {
+    target.classList.add('is-visible');
+  } else {
+    idleImage.classList.add('is-visible');
+    console.error('모션 이미지 요소를 찾지 못했습니다:', m.index, m.image);
+  }
   buttonEl.classList.add('is-pressed');
 }
 function showIdle() {
-  setCharacterImage('/assets/idle-user.png', '응애공주 기본 상태');
+  hideAllFrames();
+  idleImage.classList.add('is-visible');
   buttonEl.classList.remove('is-pressed');
 }
 function stopClickAnimation() {
@@ -364,7 +377,7 @@ function updateSettingsState() {
   const mode = document.querySelector('input[name="motionMode"]:checked')?.value || 'random';
   motionSelect.disabled = false;
   motionHint.textContent = mode === 'random'
-    ? `기본 포함 ${unlocked().length}개 이미지가 클릭할 때마다 순서가 섞여 나옵니다.`
+    ? `${Math.max(1, unlocked().length - 1)}개 해금 이미지가 순서가 섞여 나옵니다.`
     : '선택한 모션 하나만 계속 나옵니다.';
 }
 async function saveSettings() {
