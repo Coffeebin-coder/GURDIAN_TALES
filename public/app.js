@@ -1,5 +1,5 @@
 'use strict';
-const ASSET_VERSION = 53;
+const ASSET_VERSION = 54;
 const $ = (s) => document.querySelector(s);
 
 const scoreEl = $('#score');
@@ -27,13 +27,13 @@ const gameEl = $('.game');
 
 const MOTIONS = [
   { threshold: 0, name: '기본 콕', image: '/assets/pressed-user.png' },
-  { threshold: 1000, name: '반짝 미소 콕', image: '/assets/motions/1000.png' },
-  { threshold: 10000, name: '무지개 콕', image: '/assets/motions/10000.png' },
-  { threshold: 100000, name: '하트 분신 콕', image: '/assets/motions/100000.png' },
-  { threshold: 1000000, name: '황금 오라 콕', image: '/assets/motions/1000000.png' },
-  { threshold: 10000000, name: '강화 오라 콕', image: '/assets/motions/10000000.png' },
-  { threshold: 100000000, name: '마법책 콕', image: '/assets/motions/100000000.png' },
-  { threshold: 1000000000, name: '축제 피날레 콕', image: '/assets/motions/1000000000.png' }
+  { threshold: 1000, name: '반짝 미소 콕', image: '/assets/motion-1000.png' },
+  { threshold: 10000, name: '무지개 콕', image: '/assets/motion-10000.png' },
+  { threshold: 100000, name: '하트 분신 콕', image: '/assets/motion-100000.png' },
+  { threshold: 1000000, name: '황금 오라 콕', image: '/assets/motion-1000000.png' },
+  { threshold: 10000000, name: '강화 오라 콕', image: '/assets/motion-10000000.png' },
+  { threshold: 100000000, name: '마법책 콕', image: '/assets/motion-100000000.png' },
+  { threshold: 1000000000, name: '축제 피날레 콕', image: '/assets/motion-1000000000.png' }
 ];
 
 
@@ -53,7 +53,7 @@ let loadingSkipTimer = null;
 let bootSafetyTimer = null;
 let audioCtx = null;
 
-let forceRandomMigration = localStorage.getItem('eungae_motion_pref_version') !== '53';
+let forceRandomMigration = localStorage.getItem('eungae_motion_pref_version') !== '54';
 let motionMode = forceRandomMigration ? 'random' : (localStorage.getItem('eungae_motion_mode') || 'random');
 let selectedMotion = Number(localStorage.getItem('eungae_selected_motion') || 0);
 let soundEnabled = (localStorage.getItem('eungae_sound_enabled') || '1') !== '0';
@@ -78,7 +78,7 @@ function storePrefs() {
   localStorage.setItem('eungae_motion_mode', motionMode);
   localStorage.setItem('eungae_selected_motion', String(selectedMotion));
   localStorage.setItem('eungae_sound_enabled', soundEnabled ? '1' : '0');
-  localStorage.setItem('eungae_motion_pref_version', '53');
+  localStorage.setItem('eungae_motion_pref_version', '54');
 }
 function motionLabel(motion) {
   return motion.threshold === 0 ? '기본' : `${motion.threshold.toLocaleString('ko-KR')}개`;
@@ -189,10 +189,9 @@ function chooseMotion() {
     return MOTIONS[selectedMotion] || pool.at(-1) || MOTIONS[0];
   }
 
-  // 랜덤 모드에서는 해금 이미지가 하나라도 있으면 기본 이미지를 제외한다.
-  // 따라서 1000개를 넘긴 사용자는 1000개 이미지가 반드시 보인다.
-  const specials = pool.filter((m) => m.index > 0);
-  const candidates = specials.length > 0 ? specials : [MOTIONS[0]];
+  // 랜덤 모드: 현재 점수에서 해금된 모든 모션(기본 포함)을 섞어 한 번씩 보여준다.
+  // 예: 2,324 클릭이면 기본 + 1,000개 이미지가 모두 후보가 된다.
+  const candidates = pool.length ? pool : [MOTIONS[0]];
   const validIndexes = candidates.map((m) => m.index);
 
   randomBag = randomBag.filter((index) => validIndexes.includes(index));
