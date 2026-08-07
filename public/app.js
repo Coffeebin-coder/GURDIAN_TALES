@@ -1,5 +1,5 @@
 "use strict";
-const ASSET_VERSION = 61;
+const ASSET_VERSION = 62;
 const $ = (s) => document.querySelector(s);
 
 const scoreEl = $('#score');
@@ -85,6 +85,7 @@ let bootSafetyTimer = null;
 let audioCtx = null;
 let randomBag = [];
 let lastRandom = -1;
+const loadedSources = new Set();
 let motionMode = localStorage.getItem('eungae_motion_mode') || 'random';
 let selectedMotion = Number(localStorage.getItem('eungae_selected_motion') || 0);
 let selectedTitle = localStorage.getItem('eungae_selected_title') || '';
@@ -244,35 +245,50 @@ function shuffle(arr) {
   return a;
 }
 function chooseMotion() {
-  const candidates = unlocked();
-  if (motionMode === 'single') return MOTIONS[selectedMotion] || candidates[candidates.length - 1] || MOTIONS[0];
+  const allUnlocked = unlocked();
+  const loadedUnlocked = allUnlocked.filter((m) => loadedSources.has(m.src));
+  const candidates = loadedUnlocked.length ? loadedUnlocked : allUnlocked;
+
+  if (motionMode === 'single') {
+    const fixed = MOTIONS[selectedMotion];
+    return fixed && candidates.some((m) => m.index === fixed.index)
+      ? fixed
+      : candidates[candidates.length - 1] || MOTIONS[0];
+  }
+
   const valid = candidates.map((m) => m.index);
   randomBag = randomBag.filter((i) => valid.includes(i));
   if (!randomBag.length) {
     randomBag = shuffle(valid);
     if (randomBag.length > 1 && randomBag[0] === lastRandom) {
-      const swapWith = 1 + Math.floor(Math.random() * (randomBag.length - 1));
-      [randomBag[0], randomBag[swapWith]] = [randomBag[swapWith], randomBag[0]];
+      const swapWith = randomBag.findIndex((i) => i !== lastRandom);
+      if (swapWith > 0) [randomBag[0], randomBag[swapWith]] = [randomBag[swapWith], randomBag[0]];
     }
   }
+  if (randomBag.length > 1 && randomBag[0] === lastRandom) {
+    const swapWith = randomBag.findIndex((i) => i !== lastRandom);
+    if (swapWith > 0) [randomBag[0], randomBag[swapWith]] = [randomBag[swapWith], randomBag[0]];
+  }
+
   const idx = randomBag.shift();
-  const selected = MOTIONS[idx] || candidates[0] || MOTIONS[0];
+  const selected = MOTIONS.find((m) => m.index === idx) || candidates[0] || MOTIONS[0];
   lastRandom = selected.index;
   return selected;
 }
 function forceImageSwap(src, alt) {
   characterImage.alt = alt;
-  if (characterImage.getAttribute('src') === src) return;
   characterImage.setAttribute('src', src);
 }
 function showPressed() {
   const m = chooseMotion();
   forceImageSwap(m.src, m.label);
   buttonEl.classList.add('is-pressed');
+  motionNameEl.textContent = m.index > 0 ? `이번 모션 · ${m.label}` : '이번 모션 · 기본';
 }
 function showIdle() {
   forceImageSwap(IDLE_SRC, '응애공주 기본 상태');
   buttonEl.classList.remove('is-pressed');
+  renderScore();
 }
 function stopClickAnimation() {
   if (settleTimer) clearTimeout(settleTimer);
@@ -282,7 +298,7 @@ function stopClickAnimation() {
 function playClickFrame() {
   showPressed();
   if (settleTimer) clearTimeout(settleTimer);
-  settleTimer = setTimeout(() => { showIdle(); settleTimer = null; }, 240);
+  settleTimer = setTimeout(() => { showIdle(); settleTimer = null; }, 320);
 }
 function showFloat(e, amount = 1, className = '') {
   const rect = buttonEl.getBoundingClientRect();
@@ -494,8 +510,8 @@ async function shopAction(action, type, id) {
 function preload(src) {
   return new Promise((resolve) => {
     const img = new Image();
-    img.onload = () => resolve(true);
-    img.onerror = () => resolve(false);
+    img.onload = () => { loadedSources.add(src); resolve(true); };
+    img.onerror = () => { console.error('이미지 로드 실패:', src); resolve(false); };
     img.src = src;
   });
 }
