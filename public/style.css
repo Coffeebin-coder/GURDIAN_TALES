@@ -62,7 +62,7 @@ a,button,input,select,dialog{outline:none}
     radial-gradient(circle at 56% 72%, rgba(255,255,255,.94) 0 10px, transparent 11px),
     radial-gradient(circle at 58% 75%, rgba(255,245,170,.95) 0 4px, transparent 5px),
     linear-gradient(to bottom, rgba(176,237,111,.55), rgba(137,216,77,.18)),
-    url("/assets/field-background.png?v=59") center/cover no-repeat;
+    url("/assets/bg-day.png?v=61") center/cover no-repeat;
   filter:saturate(1.04) brightness(1.03);
 }
 .game::before,.game::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;transition:opacity .35s ease}
@@ -328,3 +328,32 @@ a,button,input,select,dialog{outline:none}
   .helper-grid{grid-template-columns:1fr 1fr}
   .shop-card{padding:14px}
 }
+
+/* V61 - 실제 도트 배경 이미지 + 평면 asset 경로 */
+.game{
+  background-color:#8fcf65;
+  background-position:center bottom;
+  background-size:cover;
+  background-repeat:no-repeat;
+  image-rendering:auto;
+}
+.sky-layer,.hill-layer,.field-layer{display:none!important;background:none!important}
+.game::before,.game::after{display:none!important;content:none!important}
+.game.bg-default{background-image:url('/assets/bg-day.png?v=61')}
+.game.bg-sunset{background-image:url('/assets/bg-sunset.png?v=61')}
+.game.bg-night{background-image:url('/assets/bg-night.png?v=61')}
+.background-preview{
+  height:110px;
+  background-position:center bottom!important;
+  background-size:cover!important;
+  background-repeat:no-repeat!important;
+  image-rendering:auto;
+  border:2px solid rgba(255,255,255,.85);
+  box-shadow:inset 0 0 0 1px rgba(73,58,28,.08);
+}
+.background-preview::before,.background-preview::after{display:none!important;content:none!important}
+.helper-thumb{overflow:hidden;padding:4px}
+.helper-thumb img,.helper-buddy img{object-fit:contain!important;object-position:center!important;max-width:100%;max-height:100%;pointer-events:none;-webkit-user-drag:none}
+.helper-buddy{overflow:visible!important}
+.helper-buddy img{filter:drop-shadow(0 6px 3px rgba(44,53,14,.18))}
+@media(max-width:760px){.game{background-position:center bottom}}
