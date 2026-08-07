@@ -1,9 +1,10 @@
 "use strict";
-const ASSET_VERSION = 62;
+const ASSET_VERSION = 63;
 const $ = (s) => document.querySelector(s);
 
 const scoreEl = $('#score');
 const characterImage = $('#characterImage');
+const motionDeck = $('#motionDeck');
 const buttonEl = $('#characterButton');
 const authBtn = $('#authBtn');
 const authDialog = $('#authDialog');
@@ -244,49 +245,92 @@ function shuffle(arr) {
   }
   return a;
 }
+function buildMotionDeck() {
+  if (!motionDeck || motionDeck.childElementCount) return;
+  for (const motion of MOTIONS) {
+    const img = document.createElement('img');
+    img.className = 'character-frame motion-frame';
+    img.dataset.motionIndex = String(motion.index);
+    img.src = motion.src;
+    img.alt = motion.label;
+    img.draggable = false;
+    img.addEventListener('load', () => loadedSources.add(motion.src), { once: true });
+    img.addEventListener('error', () => console.error('모션 이미지 로드 실패:', motion.src));
+    motionDeck.appendChild(img);
+  }
+}
+function motionFrame(index) {
+  return motionDeck?.querySelector(`[data-motion-index="${Number(index)}"]`) || null;
+}
+function hideMotionFrames() {
+  motionDeck?.querySelectorAll('.motion-frame.is-visible').forEach((img) => img.classList.remove('is-visible'));
+}
+function refillRandomBag(candidates) {
+  const special = candidates.filter((m) => m.index > 0).map((m) => m.index);
+  const baseExists = candidates.some((m) => m.index === 0);
+  let next = [];
+
+  if (special.length) {
+    // 해금 모션을 반드시 먼저 한 바퀴 보여준 뒤 기본 눌림 모션을 한 번 섞는다.
+    next = shuffle(special);
+    if (baseExists) {
+      const insertAt = Math.max(1, Math.floor(Math.random() * (next.length + 1)));
+      next.splice(insertAt, 0, 0);
+    }
+  } else if (baseExists) {
+    next = [0];
+  }
+
+  if (next.length > 1 && next[0] === lastRandom) {
+    const swapWith = next.findIndex((i) => i !== lastRandom);
+    if (swapWith > 0) [next[0], next[swapWith]] = [next[swapWith], next[0]];
+  }
+  randomBag = next;
+}
 function chooseMotion() {
-  const allUnlocked = unlocked();
-  const loadedUnlocked = allUnlocked.filter((m) => loadedSources.has(m.src));
-  const candidates = loadedUnlocked.length ? loadedUnlocked : allUnlocked;
+  const candidates = unlocked();
 
   if (motionMode === 'single') {
-    const fixed = MOTIONS[selectedMotion];
-    return fixed && candidates.some((m) => m.index === fixed.index)
-      ? fixed
-      : candidates[candidates.length - 1] || MOTIONS[0];
+    return MOTIONS[selectedMotion] || candidates[candidates.length - 1] || MOTIONS[0];
   }
 
-  const valid = candidates.map((m) => m.index);
-  randomBag = randomBag.filter((i) => valid.includes(i));
-  if (!randomBag.length) {
-    randomBag = shuffle(valid);
-    if (randomBag.length > 1 && randomBag[0] === lastRandom) {
-      const swapWith = randomBag.findIndex((i) => i !== lastRandom);
-      if (swapWith > 0) [randomBag[0], randomBag[swapWith]] = [randomBag[swapWith], randomBag[0]];
-    }
-  }
-  if (randomBag.length > 1 && randomBag[0] === lastRandom) {
-    const swapWith = randomBag.findIndex((i) => i !== lastRandom);
-    if (swapWith > 0) [randomBag[0], randomBag[swapWith]] = [randomBag[swapWith], randomBag[0]];
+  const valid = new Set(candidates.map((m) => m.index));
+  randomBag = randomBag.filter((i) => valid.has(i));
+  if (!randomBag.length) refillRandomBag(candidates);
+
+  let idx = randomBag.shift();
+  if (idx == null || !valid.has(idx)) {
+    refillRandomBag(candidates);
+    idx = randomBag.shift();
   }
 
-  const idx = randomBag.shift();
-  const selected = MOTIONS.find((m) => m.index === idx) || candidates[0] || MOTIONS[0];
+  const selected = MOTIONS.find((m) => m.index === idx) || candidates[candidates.length - 1] || MOTIONS[0];
   lastRandom = selected.index;
   return selected;
 }
-function forceImageSwap(src, alt) {
-  characterImage.alt = alt;
-  characterImage.setAttribute('src', src);
-}
 function showPressed() {
   const m = chooseMotion();
-  forceImageSwap(m.src, m.label);
+  const frame = motionFrame(m.index);
+  hideMotionFrames();
+  characterImage.classList.remove('is-visible');
+  if (frame) {
+    frame.classList.remove('motion-pop');
+    void frame.offsetWidth;
+    frame.classList.add('is-visible', 'motion-pop');
+  } else {
+    // 예외적인 경우에만 기존 img를 사용한다.
+    characterImage.src = m.src;
+    characterImage.alt = m.label;
+    characterImage.classList.add('is-visible');
+  }
   buttonEl.classList.add('is-pressed');
   motionNameEl.textContent = m.index > 0 ? `이번 모션 · ${m.label}` : '이번 모션 · 기본';
 }
 function showIdle() {
-  forceImageSwap(IDLE_SRC, '응애공주 기본 상태');
+  hideMotionFrames();
+  characterImage.src = IDLE_SRC;
+  characterImage.alt = '응애공주 기본 상태';
+  characterImage.classList.add('is-visible');
   buttonEl.classList.remove('is-pressed');
   renderScore();
 }
@@ -298,7 +342,7 @@ function stopClickAnimation() {
 function playClickFrame() {
   showPressed();
   if (settleTimer) clearTimeout(settleTimer);
-  settleTimer = setTimeout(() => { showIdle(); settleTimer = null; }, 320);
+  settleTimer = setTimeout(() => { showIdle(); settleTimer = null; }, 360);
 }
 function showFloat(e, amount = 1, className = '') {
   const rect = buttonEl.getBoundingClientRect();
@@ -535,6 +579,7 @@ function releaseGame(total) {
   setTimeout(() => loadingScreen.classList.add('is-hidden'), 250);
 }
 async function bootGame() {
+  buildMotionDeck();
   const srcs = [IDLE_SRC, PRESSED_SRC, ...MOTIONS.slice(1).map((m) => m.src), ...HELPERS.map((h) => h.src), ...BACKGROUNDS.map((b) => b.src)];
   let done = 0;
   const total = srcs.length;
@@ -626,6 +671,7 @@ window.addEventListener('keydown', (e) => {
 
 document.querySelectorAll('dialog .close').forEach((btn) => btn.addEventListener('click', () => btn.closest('dialog').close()));
 
+buildMotionDeck();
 renderLeaderboard();
 renderScore();
 updateAuth();
