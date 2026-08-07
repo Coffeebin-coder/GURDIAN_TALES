@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#9ecfff">
   <meta name="description" content="응애공주를 클릭하고 실시간 TOP 3에 도전하세요.">
   <title>응애공주</title>
-  <link rel="stylesheet" href="/style.css?v=62">
+  <link rel="stylesheet" href="/style.css?v=63">
 </head>
 <body>
   <div id="loadingScreen" class="loading-screen" role="status" aria-live="polite" aria-label="게임 이미지 로딩 중">
@@ -26,7 +26,8 @@
     <div class="field-layer" aria-hidden="true"></div>
 
     <button id="characterButton" class="screen-clicker" type="button" aria-label="응애공주 클릭">
-      <img id="characterImage" class="character-frame is-visible" src="/assets/idle-user.png?v=62" alt="응애공주 기본 상태" draggable="false">
+      <img id="characterImage" class="character-frame idle-frame is-visible" src="/assets/idle-user.png?v=63" alt="응애공주 기본 상태" draggable="false">
+      <div id="motionDeck" class="motion-deck" aria-hidden="true"></div>
     </button>
 
     <div id="helperLayer" class="helper-layer" aria-live="polite"></div>
@@ -132,6 +133,6 @@
     </form>
   </dialog>
 
-  <script src="/app.js?v=62" defer></script>
+  <script src="/app.js?v=63" defer></script>
 </body>
 </html>
