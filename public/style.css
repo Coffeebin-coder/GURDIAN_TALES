@@ -62,7 +62,7 @@ a,button,input,select,dialog{outline:none}
     radial-gradient(circle at 56% 72%, rgba(255,255,255,.94) 0 10px, transparent 11px),
     radial-gradient(circle at 58% 75%, rgba(255,245,170,.95) 0 4px, transparent 5px),
     linear-gradient(to bottom, rgba(176,237,111,.55), rgba(137,216,77,.18)),
-    url("/assets/bg-day.png?v=61") center/cover no-repeat;
+    url("/assets/bg-day.png?v=62") center/cover no-repeat;
   filter:saturate(1.04) brightness(1.03);
 }
 .game::before,.game::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;transition:opacity .35s ease}
@@ -339,9 +339,9 @@ a,button,input,select,dialog{outline:none}
 }
 .sky-layer,.hill-layer,.field-layer{display:none!important;background:none!important}
 .game::before,.game::after{display:none!important;content:none!important}
-.game.bg-default{background-image:url('/assets/bg-day.png?v=61')}
-.game.bg-sunset{background-image:url('/assets/bg-sunset.png?v=61')}
-.game.bg-night{background-image:url('/assets/bg-night.png?v=61')}
+.game.bg-default{background-image:url('/assets/bg-day.png?v=62')}
+.game.bg-sunset{background-image:url('/assets/bg-sunset.png?v=62')}
+.game.bg-night{background-image:url('/assets/bg-night.png?v=62')}
 .background-preview{
   height:110px;
   background-position:center bottom!important;
@@ -357,3 +357,145 @@ a,button,input,select,dialog{outline:none}
 .helper-buddy{overflow:visible!important}
 .helper-buddy img{filter:drop-shadow(0 6px 3px rgba(44,53,14,.18))}
 @media(max-width:760px){.game{background-position:center bottom}}
+
+/* V62 - 우측 상태 패널 / 도우미 상점 / 모션 표시 안정화 */
+.score-layer{
+  gap:0!important;
+}
+.score-layer small,
+.score-layer .my-title,
+.score-layer .helper-income{
+  display:none!important;
+}
+.title-status{
+  margin-top:12px;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:7px;
+  pointer-events:none;
+  text-shadow:none;
+}
+.title-status .my-title,
+.title-status .motion-status,
+.title-status .helper-income{
+  display:inline-flex!important;
+  align-items:center;
+  justify-content:center;
+  max-width:min(340px,38vw);
+  min-height:30px;
+  padding:6px 12px;
+  border:2px solid rgba(255,255,255,.9);
+  border-radius:999px;
+  background:rgba(255,255,255,.88);
+  color:#563d20;
+  font-size:clamp(9px,1vw,12px);
+  font-style:normal;
+  font-weight:1000;
+  line-height:1.1;
+  letter-spacing:0;
+  box-shadow:0 5px 14px rgba(41,65,17,.16);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.title-status .my-title{
+  background:rgba(67,50,40,.88);
+  color:#fff7cf;
+}
+.title-status .motion-status{
+  margin:0;
+}
+.title-status .helper-income{
+  margin:0;
+}
+
+/* 상점 도우미는 GIF 전체 캔버스를 축소해서 보여주고 절대 잘라내지 않는다. */
+.helper-thumb{
+  height:158px!important;
+  min-height:158px;
+  padding:10px!important;
+  overflow:hidden!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  background:linear-gradient(180deg,#fff7d4 0%,#fff1b6 100%)!important;
+}
+.helper-thumb img{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  object-fit:contain!important;
+  object-position:center center!important;
+  image-rendering:pixelated!important;
+  transform:none!important;
+}
+.helper-grid .shop-item{
+  grid-template-rows:158px auto auto 1fr!important;
+  overflow:visible;
+}
+
+/* 실제 메인 화면 도우미도 원본 비율 유지 */
+.helper-buddy{
+  width:132px;
+  min-height:132px;
+  overflow:visible!important;
+}
+.helper-buddy img{
+  width:132px!important;
+  height:132px!important;
+  object-fit:contain!important;
+  object-position:center!important;
+}
+
+/* 모션 이미지가 해금 모션으로 교체될 때 짧게 눈에 띄게 표시 */
+.screen-clicker.is-pressed .character-frame{
+  animation:motionPop .16s steps(2,end) both;
+}
+@keyframes motionPop{
+  0%{transform:scale(.98)}
+  100%{transform:scale(1.025)}
+}
+
+/* 배경 상점은 실제 판매 이미지 자체를 미리보기로 사용 */
+.background-preview{
+  height:142px!important;
+  background-position:center center!important;
+  background-size:cover!important;
+  image-rendering:pixelated;
+}
+
+@media(max-width:760px){
+  .title-layer{
+    left:auto!important;
+    right:12px!important;
+    top:82px!important;
+    bottom:auto!important;
+    text-align:right!important;
+  }
+  .title-layer h1{font-size:clamp(24px,7vw,42px)!important}
+  .title-layer p{font-size:7px!important}
+  .title-status{margin-top:7px;gap:5px;align-items:flex-end}
+  .title-status .my-title,
+  .title-status .motion-status,
+  .title-status .helper-income{
+    max-width:52vw;
+    min-height:24px;
+    padding:4px 9px;
+    font-size:8px;
+  }
+  .helper-thumb{height:132px!important;min-height:132px}
+  .helper-grid .shop-item{grid-template-rows:132px auto auto 1fr!important}
+  .helper-buddy{width:92px;min-height:92px}
+  .helper-buddy img{width:92px!important;height:92px!important}
+}
+@media(max-width:430px){
+  .title-layer{top:68px!important;right:8px!important}
+  .title-status .my-title,
+  .title-status .motion-status,
+  .title-status .helper-income{max-width:58vw;font-size:7px}
+  .helper-thumb{height:116px!important;min-height:116px}
+  .helper-grid .shop-item{grid-template-rows:116px auto auto 1fr!important}
+}
