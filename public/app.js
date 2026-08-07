@@ -1,5 +1,5 @@
 "use strict";
-const ASSET_VERSION = 59;
+const ASSET_VERSION = 61;
 const $ = (s) => document.querySelector(s);
 
 const scoreEl = $('#score');
@@ -39,13 +39,13 @@ const IDLE_SRC = `/assets/idle-user.png?v=${ASSET_VERSION}`;
 const PRESSED_SRC = `/assets/pressed-user.png?v=${ASSET_VERSION}`;
 const MOTIONS = [
   { index: 0, threshold: 0, label: '기본', src: PRESSED_SRC },
-  { index: 1, threshold: 1000, label: '1,000 클릭', src: `/assets/motions/1000.png?v=${ASSET_VERSION}` },
-  { index: 2, threshold: 10000, label: '10,000 클릭', src: `/assets/motions/10000.png?v=${ASSET_VERSION}` },
-  { index: 3, threshold: 100000, label: '100,000 클릭', src: `/assets/motions/100000.png?v=${ASSET_VERSION}` },
-  { index: 4, threshold: 1000000, label: '1,000,000 클릭', src: `/assets/motions/1000000.png?v=${ASSET_VERSION}` },
-  { index: 5, threshold: 10000000, label: '10,000,000 클릭', src: `/assets/motions/10000000.png?v=${ASSET_VERSION}` },
-  { index: 6, threshold: 100000000, label: '100,000,000 클릭', src: `/assets/motions/100000000.png?v=${ASSET_VERSION}` },
-  { index: 7, threshold: 1000000000, label: '1,000,000,000 클릭', src: `/assets/motions/1000000000.png?v=${ASSET_VERSION}` }
+  { index: 1, threshold: 1000, label: '1,000 클릭', src: `/assets/motion-1000.png?v=${ASSET_VERSION}` },
+  { index: 2, threshold: 10000, label: '10,000 클릭', src: `/assets/motion-10000.png?v=${ASSET_VERSION}` },
+  { index: 3, threshold: 100000, label: '100,000 클릭', src: `/assets/motion-100000.png?v=${ASSET_VERSION}` },
+  { index: 4, threshold: 1000000, label: '1,000,000 클릭', src: `/assets/motion-1000000.png?v=${ASSET_VERSION}` },
+  { index: 5, threshold: 10000000, label: '10,000,000 클릭', src: `/assets/motion-10000000.png?v=${ASSET_VERSION}` },
+  { index: 6, threshold: 100000000, label: '100,000,000 클릭', src: `/assets/motion-100000000.png?v=${ASSET_VERSION}` },
+  { index: 7, threshold: 1000000000, label: '1,000,000,000 클릭', src: `/assets/motion-1000000000.png?v=${ASSET_VERSION}` }
 ];
 const TITLE_TIERS = [
   [0, '응애 궁전의 새싹'],
@@ -61,14 +61,14 @@ const TITLE_TIERS = [
   [1000000000, '응애공주의 전설 가디언']
 ];
 const HELPERS = [
-  { id: 1, name: '해바라기 응애', price: 5000, cps: 1, src: `/assets/helpers/helper-1.gif?v=${ASSET_VERSION}` },
-  { id: 2, name: '울먹 응애공주', price: 12000, cps: 2, src: `/assets/helpers/helper-2.gif?v=${ASSET_VERSION}` },
-  { id: 3, name: '꼬마 공주 미니', price: 25000, cps: 4, src: `/assets/helpers/helper-3.gif?v=${ASSET_VERSION}` }
+  { id: 1, name: '해바라기 응애', price: 5000, cps: 1, src: `/assets/helper-1.gif?v=${ASSET_VERSION}` },
+  { id: 2, name: '울먹 응애공주', price: 12000, cps: 2, src: `/assets/helper-2.gif?v=${ASSET_VERSION}` },
+  { id: 3, name: '꼬마 공주 미니', price: 25000, cps: 4, src: `/assets/helper-3.gif?v=${ASSET_VERSION}` }
 ];
 const BACKGROUNDS = [
-  { id: 'default', name: '하늘꽃 초원', price: 0, desc: '푸른 하늘과 꽃밭이 함께 보이는 기본 배경' },
-  { id: 'sunset', name: '노을빛 초원', price: 15000, desc: '뒤에서 노을빛이 비치는 따뜻한 배경' },
-  { id: 'night', name: '별빛 밤초원', price: 30000, desc: '별이 반짝이는 밤 배경' }
+  { id: 'default', name: '하늘꽃 초원', price: 0, src: `/assets/bg-day.png?v=${ASSET_VERSION}`, desc: '푸른 하늘이 크게 보이고 공주님이 꽃밭에 서 있는 듯한 도트 배경' },
+  { id: 'sunset', name: '노을빛 초원', price: 15000, src: `/assets/bg-sunset.png?v=${ASSET_VERSION}`, desc: '노을빛이 수평선 너머에서 비치는 도트 꽃밭' },
+  { id: 'night', name: '별빛 밤초원', price: 30000, src: `/assets/bg-night.png?v=${ASSET_VERSION}`, desc: '달과 별, 반딧불이 반짝이는 도트 밤꽃밭' }
 ];
 
 let token = localStorage.getItem('eungae_token') || '';
@@ -169,8 +169,10 @@ async function api(path, options = {}) {
 function updateAuth() { authBtn.textContent = user ? `${user.username} · 로그아웃` : '로그인'; }
 function applyBackground() {
   const id = user?.activeBackground || 'default';
+  const bg = BACKGROUNDS.find((x) => x.id === id) || BACKGROUNDS[0];
   gameEl.classList.remove('bg-default', 'bg-sunset', 'bg-night');
-  gameEl.classList.add(`bg-${id}`);
+  gameEl.classList.add(`bg-${bg.id}`);
+  gameEl.style.backgroundImage = `url('${bg.src}')`;
 }
 function renderHelpers() {
   if (!helperLayer) return;
@@ -259,11 +261,9 @@ function chooseMotion() {
   return selected;
 }
 function forceImageSwap(src, alt) {
-  if (characterImage.src.endsWith(src)) {
-    characterImage.src = '';
-  }
-  characterImage.src = src;
   characterImage.alt = alt;
+  if (characterImage.getAttribute('src') === src) return;
+  characterImage.setAttribute('src', src);
 }
 function showPressed() {
   const m = chooseMotion();
@@ -282,7 +282,7 @@ function stopClickAnimation() {
 function playClickFrame() {
   showPressed();
   if (settleTimer) clearTimeout(settleTimer);
-  settleTimer = setTimeout(() => { showIdle(); settleTimer = null; }, 160);
+  settleTimer = setTimeout(() => { showIdle(); settleTimer = null; }, 240);
 }
 function showFloat(e, amount = 1, className = '') {
   const rect = buttonEl.getBoundingClientRect();
@@ -467,7 +467,7 @@ function renderShop() {
     const owned = item.id === 'default' || ownedBackgrounds.has(item.id);
     const equipped = (user.activeBackground || 'default') === item.id;
     return `<article class="shop-item background-item ${equipped ? 'is-equipped' : ''}">
-      <div class="background-preview bg-preview-${item.id}"></div>
+      <div class="background-preview" style="background-image:url('${item.src}')"></div>
       <strong>${escapeHtml(item.name)}</strong>
       <small>${escapeHtml(item.desc)}</small>
       ${shopButtonHtml('background', item.id, item.price, owned, equipped)}
@@ -519,7 +519,7 @@ function releaseGame(total) {
   setTimeout(() => loadingScreen.classList.add('is-hidden'), 250);
 }
 async function bootGame() {
-  const srcs = [IDLE_SRC, PRESSED_SRC, ...MOTIONS.slice(1).map((m) => m.src), ...HELPERS.map((h) => h.src)];
+  const srcs = [IDLE_SRC, PRESSED_SRC, ...MOTIONS.slice(1).map((m) => m.src), ...HELPERS.map((h) => h.src), ...BACKGROUNDS.map((b) => b.src)];
   let done = 0;
   const total = srcs.length;
   updateLoading(0, total, '이미지를 준비하고 있어요…');
